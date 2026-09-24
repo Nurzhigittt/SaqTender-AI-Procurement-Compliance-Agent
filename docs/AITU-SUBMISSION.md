@@ -34,6 +34,8 @@ Attach a short recording of the working sample workflow. State **Demo Mode** cle
 
 Suggested recording sequence: company profile → sample tender → run analysis → evidence and missing work-experience document → deadline and draft reminders → limitations and next milestone.
 
+The interface defaults to Russian; use the **RU / EN** switch if an English recording is preferable. The selected language controls interface text and the assessment narrative. Evidence quotes retain their original source language, including when an English tender is analyzed in Russian.
+
 ## 6. Project link
 
 [SaqTender AI — public demo](https://saq-tender-ai-procurement-complianc.vercel.app/)

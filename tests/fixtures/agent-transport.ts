@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { analyzeLiveTender } from "../../lib/agent";
-import { DISCLAIMER, SAMPLE_TENDER } from "../../lib/demo-data";
+import { getDisclaimer, SAMPLE_TENDER } from "../../lib/demo-data";
 import { analyzeDemoTender } from "../../lib/mock-analysis";
 
 async function main() {
   const scenario = process.argv[2];
-  const canonical = analyzeDemoTender(SAMPLE_TENDER);
+  const locale = scenario === "russian" ? "ru" : "en";
+  const canonical = analyzeDemoTender(SAMPLE_TENDER, locale);
   const finalOutput = structuredClone(canonical);
   const requests: Array<Record<string, unknown>> = [];
   const capturedLogs: string[] = [];
@@ -36,7 +37,10 @@ async function main() {
     const requestBody = JSON.parse(String(init?.body));
     requests.push(requestBody);
     assert.equal(requestBody.store, false);
-    if (requests.length === 1) assert.deepEqual(requestBody.tool_choice, { type: "function", name: "getCompanyProfile" });
+    if (requests.length === 1) {
+      assert.deepEqual(requestBody.tool_choice, { type: "function", name: "getCompanyProfile" });
+      if (scenario === "russian") assert.match(String(requestBody.instructions), /Return concise plain Russian/);
+    }
 
     if (scenario === "abort") {
       const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
@@ -73,14 +77,20 @@ async function main() {
   if (scenario === "abort") abortTimer = setTimeout(() => controller.abort(), 100);
   try {
     if (["missing-profile", "wrong-evidence", "wrong-alert-input", "abort", "provider-error"].includes(scenario)) {
-      await assert.rejects(analyzeLiveTender(SAMPLE_TENDER, controller.signal));
+      await assert.rejects(analyzeLiveTender(SAMPLE_TENDER, controller.signal, locale));
       if (scenario === "abort") assert.equal(controller.signal.aborted, true);
     } else {
-      const assessment = await analyzeLiveTender(SAMPLE_TENDER, controller.signal);
+      const assessment = await analyzeLiveTender(SAMPLE_TENDER, controller.signal, locale);
       assert.equal(requests.length, 3, "Expected profile tool, alert tool, and final structured response");
       assert.deepEqual(assessment.alerts, canonical.alerts);
-      assert.equal(assessment.disclaimer, DISCLAIMER);
+      assert.equal(assessment.disclaimer, getDisclaimer(locale));
       assert.equal(assessment.officialEligibilityVerified, false);
+      if (scenario === "russian") {
+        assert.match(assessment.summary, /[А-Яа-яЁё]/u);
+        assert.match(assessment.disclaimer, /[А-Яа-яЁё]/u);
+        assert.ok(assessment.requirements.every((item) => SAMPLE_TENDER.includes(item.tenderEvidence)));
+        assert.ok(assessment.alerts.every((item) => /[А-Яа-яЁё]/u.test(item.title)));
+      }
 
       // The later model requests must actually contain the local tool results.
       const allInputs = JSON.stringify(requests.map((request) => request.input));

@@ -39,6 +39,7 @@ export const AssessmentSchema = z.object({
 
 export const AnalyzeRequestSchema = z.object({
   tenderText: z.string().trim().min(20, "Enter at least 20 characters of tender text.").max(20000, "Tender text must be 20,000 characters or fewer."),
+  locale: z.enum(["ru", "en"]).default("en"),
 }).strict();
 
 export type Requirement = z.infer<typeof RequirementSchema>;

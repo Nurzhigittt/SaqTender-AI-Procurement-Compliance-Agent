@@ -1,4 +1,5 @@
 import type { CompanyProfile } from "./types";
+import type { Locale } from "./i18n";
 
 export const DEMO_COMPANY: CompanyProfile = {
   name: "OrdaBuild Demo LLP",
@@ -14,6 +15,12 @@ export const DEMO_COMPANY: CompanyProfile = {
 };
 
 export const DISCLAIMER = "Decision support only. This assessment compares the provided tender text with a fictional demo company profile. Official eligibility is not verified. Check the complete tender, original documents, and official sources before making a procurement decision. Draft alerts are not scheduled or sent.";
+
+export const DISCLAIMER_RU = "Инструмент поддержки решений. Оценка сопоставляет предоставленный текст тендера с профилем вымышленной компании. Официальное право на участие не проверено. Перед принятием решения изучите полную документацию тендера, оригиналы документов и официальные источники. Черновики напоминаний не запланированы и не отправляются.";
+
+export function getDisclaimer(locale: Locale): string {
+  return locale === "ru" ? DISCLAIMER_RU : DISCLAIMER;
+}
 
 export const SAMPLE_REQUIREMENTS = {
   license: "The bidder must hold an active construction license.",
@@ -46,6 +53,42 @@ Missing mandatory documents may cause rejection of the application. The buyer wi
 
 Demonstration note
 No connection to procurement registries is provided. No official eligibility decision or legal advice is offered.`;
+
+export const SAMPLE_REQUIREMENTS_RU = {
+  license: "Участник должен иметь действующую строительную лицензию.",
+  expert: "Участник должен предоставить экспертное заключение, действующее в течение периода подачи заявок до крайнего срока их подачи включительно.",
+  experience: "Подтверждённый опыт выполнения аналогичных работ обязателен и должен быть подкреплён документами, подтверждающими опыт работ.",
+  financial: "Участник должен предоставить актуальную финансовую документацию, включая последний обновлённый финансовый отчёт.",
+} as const;
+
+export const SAMPLE_TENDER_RU = `ВЫМЫШЛЕННЫЙ ДЕМО-ТЕНДЕР — НЕ ОФИЦИАЛЬНОЕ ОБЪЯВЛЕНИЕ О ЗАКУПКЕ
+Номер: DEMO-SCHOOL-2026-014
+Проект: Строительство школы на 300 мест в районе Астаны
+Заказчик: Вымышленное управление образовательной инфраструктуры
+
+Предмет работ
+Строительные и инженерные работы для новой школы, включая возведение конструкций, внутренние инженерные сети и благоустройство территории. Объявление и все его участники вымышлены и приведены только для демонстрации.
+
+Период подачи заявок и сроки
+Начало подачи заявок: 2026-09-20 09:00 Asia/Almaty.
+Крайний срок подачи заявки: 2026-09-29 10:00 Asia/Almaty.
+Крайний срок внесения обеспечения заявки: 2026-09-26 18:00 Asia/Almaty.
+
+Обязательные квалификационные документы
+1. ${SAMPLE_REQUIREMENTS_RU.license}
+2. ${SAMPLE_REQUIREMENTS_RU.expert}
+3. ${SAMPLE_REQUIREMENTS_RU.experience}
+4. ${SAMPLE_REQUIREMENTS_RU.financial}
+
+Правило подачи заявки
+Отсутствие обязательных документов может привести к отклонению заявки. Заказчик проверит все представленные подтверждения по официальной тендерной документации.
+
+Примечание к демонстрации
+Подключение к реестрам закупок отсутствует. Сервис не принимает официальных решений о допуске к участию и не предоставляет юридических консультаций.`;
+
+export function getSampleTender(locale: Locale): string {
+  return locale === "ru" ? SAMPLE_TENDER_RU : SAMPLE_TENDER;
+}
 
 export const UNKNOWN_COMPANY_EVIDENCE = "The provided company profile does not establish this requirement.";
 

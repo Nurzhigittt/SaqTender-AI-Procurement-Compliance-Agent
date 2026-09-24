@@ -19,6 +19,12 @@ The initial audience is construction, design and engineering companies participa
 
 The application does not send notifications or schedule background jobs. Draft alerts are part of the returned assessment.
 
+## Interface languages
+
+The interface opens in Russian and includes an **RU / EN** language switch. The sample tender, demo assessment, labels and recommendations are available in both languages. Live analysis uses the selected output language while preserving tender evidence as exact excerpts in the original language. Selecting Russian for an English tender does not translate or replace the source quotes.
+
+The API accepts an optional `locale` of `ru` or `en`. Omitting it retains English API behavior for existing integrations. Document identifiers, structured status values and date formats stay stable across languages.
+
 ## AI workflow and boundaries
 
 Live mode uses the official OpenAI Agents SDK on the server. One specialist, **SaqTender Compliance Agent**, is instructed to analyze only the supplied company profile and tender, preserve direct evidence, use `unknown` when evidence is insufficient, and distinguish facts from recommendations.

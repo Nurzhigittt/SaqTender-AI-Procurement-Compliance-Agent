@@ -438,3 +438,30 @@ blockquote { margin: 0; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+.language-switch { display: inline-flex; align-items: center; padding: 3px; gap: 2px; border: 1px solid #dce5e8; background: #f5f8f9; border-radius: 7px; }
+.language-switch button { background: transparent; color: #596f7a; border-radius: 4px; font-size: 12px; font-weight: 650; min-width: 33px; min-height: 27px; padding: 4px 6px; }
+.language-switch button[aria-pressed="true"] { color: #086e59; background: #fff; box-shadow: 0 1px 3px #183e3217; }
+.language-switch button:hover:not(:disabled) { color: #075744; background: #edf5f1; }
+.nav-item > span:not(.nav-count) { min-width: 0; }
+html[lang="ru"] .company-summary h3 { overflow-wrap: anywhere; }
+html[lang="ru"] .document-detail small { line-height: 1.7; }
+html[lang="ru"] .expiry-soon { white-space: normal; }
+html[lang="ru"] .requirement-breakdown { width: 205px; }
+html[lang="ru"] .requirements-header, html[lang="ru"] .requirement-row > summary { grid-template-columns: 1.1fr 1fr 96px 16px; }
+@media (max-width: 1240px) {
+  html[lang="ru"] .requirement-breakdown { width: 170px; }
+  html[lang="ru"] .assessment-eyebrow { flex-wrap: wrap; }
+}
+@media (max-width: 760px) {
+  .topbar { height: auto; min-height: 64px; padding-top: 13px; padding-bottom: 13px; gap: 12px; flex-wrap: wrap; }
+  .header-right { gap: 10px; }
+  .header-right > .badge { font-size: 10px; }
+  .language-switch button { min-width: 29px; min-height: 28px; }
+  html[lang="ru"] .requirement-breakdown { width: 100%; }
+  html[lang="ru"] .requirement-row > summary { grid-template-columns: 1fr auto 14px; }
+  html[lang="ru"] .breakdown-labels { flex-wrap: wrap; justify-content: flex-start; gap: 8px 14px; }
+  html[lang="ru"] .document-item { gap: 8px; }
+  html[lang="ru"] .document-detail strong { font-size: 12px; }
+  html[lang="ru"] .document-item .badge { font-size: 9px; }
+}
