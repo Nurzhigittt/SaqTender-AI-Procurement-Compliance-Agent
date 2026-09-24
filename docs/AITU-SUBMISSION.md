@@ -1,6 +1,6 @@
 # AITU AI StartUp Projects — submission draft
 
-Use the wording below for the current demonstration stage. Replace the bracketed contact and link fields yourself. Do not claim live AI verification until an actual request has completed successfully with your API key.
+Use the wording below for the current demonstration stage. Replace the bracketed contact fields yourself. Do not claim live AI verification until an actual request has completed successfully with your API key.
 
 ## 1. Name of the Project
 
@@ -36,9 +36,11 @@ Suggested recording sequence: company profile → sample tender → run analysis
 
 ## 6. Project link
 
-**[Replace with the deployed, accessible application URL after testing it.]**
+[SaqTender AI — public demo](https://saq-tender-ai-procurement-complianc.vercel.app/)
 
-Optionally add the public repository URL if available. A local `localhost` URL or a placeholder is not a usable submission link. Open the deployment in a private browser window to confirm reviewers can access it.
+Verified on 24 September 2026 in a clean browser without authentication. The public application currently uses deterministic Demo Mode.
+
+Source code: [GitHub repository](https://github.com/Nurzhigittt/SaqTender-AI-Procurement-Compliance-Agent).
 
 ## 7. Contact details
 
@@ -75,4 +77,4 @@ If recording verified live mode, replace the Demo Mode sentence with: «Сейч
 
 [GitHub repository](https://github.com/Nurzhigittt/SaqTender-AI-Procurement-Compliance-Agent)
 
-A public app URL can be added after Vercel deployment. Do not use localhost as the public project link.
+Public demo: https://saq-tender-ai-procurement-complianc.vercel.app/

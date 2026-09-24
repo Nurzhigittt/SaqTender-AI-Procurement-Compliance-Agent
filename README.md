@@ -6,6 +6,8 @@ SaqTender AI helps a tender specialist compare the requirements in a tender with
 
 The initial audience is construction, design and engineering companies participating in procurement in Kazakhstan. This prototype demonstrates one complete review workflow using the fictional **OrdaBuild Demo LLP** and a fictional school-construction tender. It does not connect to procurement portals or determine official eligibility.
 
+**[Open the public demo](https://saq-tender-ai-procurement-complianc.vercel.app/)** — runs in deterministic Demo Mode and is accessible without a Vercel account.
+
 ## What the demo does
 
 1. Shows the company's document profile.
@@ -60,6 +62,7 @@ npm test
 - `npm install` and the optimized production build complete successfully.
 - `npm test`: 17 tests pass, including evidence/date validation and the real Agents SDK with an intercepted, offline provider transport.
 - Browser checks cover sample analysis, all report tabs, expanded evidence, edited-text behavior, validation errors, mobile widths (320px and 390px), and 200% zoom.
+- Published production demo checked on 24 September 2026: public access, sample API response, all result tabs, exact evidence and a 390px mobile viewport passed.
 - A real OpenAI API request is **not yet verified** because no API key was provided. Offline SDK tests do not replace that check.
 
 The build uses Next.js with webpack for compatibility with restricted local environments.
