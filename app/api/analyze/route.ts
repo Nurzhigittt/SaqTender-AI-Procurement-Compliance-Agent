@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { analyzeLiveTender } from "@/lib/agent";
 import { analyzeDemoTender } from "@/lib/mock-analysis";
 import { getAnalysisMode } from "@/lib/server-config";
+import { getAnalysisFailure } from "@/lib/analysis-error";
 import type { Locale } from "@/lib/i18n";
 import { AnalyzeRequestSchema, type AnalyzeResponse } from "@/lib/types";
 
@@ -79,9 +80,10 @@ export async function POST(request: NextRequest) {
       : await analyzeLiveTender(parsed.data.tenderText, controller.signal, locale);
     const response: AnalyzeResponse = { assessment, mode, analyzedAt: new Date().toISOString() };
     return NextResponse.json(response, { headers: RESPONSE_HEADERS });
-  } catch {
+  } catch (cause) {
     if (timedOut || controller.signal.aborted) return error(tr("The analysis timed out or was interrupted. Please retry.", "Анализ прерван или превысил время ожидания. Повторите попытку."), 504);
-    return error(tr("The analysis could not be completed or its evidence could not be verified. Please retry. If this continues, check the server's AI configuration.", "Не удалось завершить анализ или проверить его подтверждения. Повторите попытку. Если ошибка сохраняется, проверьте настройки ИИ на сервере."), 502);
+    const failure = getAnalysisFailure(cause, locale);
+    return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status, headers: RESPONSE_HEADERS });
   } finally {
     clearTimeout(timeout);
     request.signal.removeEventListener("abort", onDisconnect);

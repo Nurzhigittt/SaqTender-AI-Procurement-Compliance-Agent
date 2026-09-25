@@ -16,6 +16,8 @@ const scenarios = [
   ["normalize-final", "live SDK output cannot override server-generated reminder dates or disclaimer"],
   ["abort", "live SDK transport aborts promptly when the run signal times out"],
   ["provider-error", "live SDK provider errors do not log a secret or tender text"],
+  ["route-auth-error", "API route returns a localized key configuration error without leaking provider data"],
+  ["route-quota-error", "API route distinguishes exhausted quota from a retryable request rate limit"],
 ] as const;
 
 for (const [scenario, title] of scenarios) {

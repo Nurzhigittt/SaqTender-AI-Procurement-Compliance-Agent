@@ -51,11 +51,12 @@ async function main() {
         else signal.addEventListener("abort", abort, { once: true });
       });
     }
-    if (scenario === "provider-error") {
+    if (["provider-error", "route-auth-error", "route-quota-error"].includes(scenario)) {
+      const quota = scenario === "route-quota-error";
       return new Response(JSON.stringify({ error: {
         message: `test-key-never-sent ${SAMPLE_TENDER}`,
-        type: "invalid_request_error", code: "invalid_api_key",
-      } }), { status: 401, headers: { "Content-Type": "application/json" } });
+        type: quota ? "insufficient_quota" : "invalid_request_error", code: quota ? "insufficient_quota" : "invalid_api_key",
+      } }), { status: quota ? 429 : 401, headers: { "Content-Type": "application/json", "x-should-retry": "false" } });
     }
 
     const output = scenario === "missing-profile" ? finalMessage()
@@ -76,7 +77,22 @@ async function main() {
   let abortTimer: ReturnType<typeof setTimeout> | undefined;
   if (scenario === "abort") abortTimer = setTimeout(() => controller.abort(), 100);
   try {
-    if (["missing-profile", "wrong-evidence", "wrong-alert-input", "abort", "provider-error"].includes(scenario)) {
+    if (["route-auth-error", "route-quota-error"].includes(scenario)) {
+      const { POST } = await import("../../app/api/analyze/route");
+      const { NextRequest } = await import("next/server");
+      const response = await POST(new NextRequest("https://example.test/api/analyze", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenderText: SAMPLE_TENDER, locale: "ru" }),
+      }));
+      const body = await response.json();
+      assert.equal(response.status, scenario === "route-quota-error" ? 503 : 502);
+      assert.equal(body.code, scenario === "route-quota-error" ? "ai_quota_exceeded" : "ai_authentication_failed");
+      assert.match(body.error, /[А-Яа-я]/u);
+      assert.equal(JSON.stringify(body).includes("test-key-never-sent"), false);
+      assert.equal(JSON.stringify(body).includes("FICTIONAL DEMO TENDER"), false);
+      assert.equal("assessment" in body, false);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+    } else if (["missing-profile", "wrong-evidence", "wrong-alert-input", "abort", "provider-error"].includes(scenario)) {
       await assert.rejects(analyzeLiveTender(SAMPLE_TENDER, controller.signal, locale));
       if (scenario === "abort") assert.equal(controller.signal.aborted, true);
     } else {

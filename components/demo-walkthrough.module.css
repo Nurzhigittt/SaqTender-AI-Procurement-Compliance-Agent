@@ -1,0 +1,87 @@
+.launcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #cddedb;
+  border-radius: 8px;
+  background: #fff;
+  color: #246658;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.launcher:hover, .launcher[aria-expanded="true"] { background: #eaf5f1; border-color: #91bdae; }
+
+.panel {
+  position: fixed;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  width: min(320px, calc(100vw - 36px));
+  max-height: min(420px, 55dvh);
+  border: 1px solid #cbdcd7;
+  border-radius: 13px;
+  background: #fff;
+  color: #172b3b;
+  box-shadow: 0 12px 44px #10233326, 0 2px 8px #1023330d;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.panel:focus-visible { outline: 3px solid #3aa897; outline-offset: 3px; }
+.header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #e5edeb; background: #f3f8f6; }
+.headingGroup { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.guideIcon { display: inline-flex; align-items: center; justify-content: center; width: 31px; height: 31px; flex-shrink: 0; background: #dfeee8; color: #087f69; border-radius: 8px; }
+.heading { margin: 0; font-size: 13px; line-height: 1.4; font-weight: 650; }
+.counter { display: block; margin-top: 2px; color: #526c66; font-size: 11px; line-height: 1.3; }
+.close { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; color: #526874; background: transparent; }
+.close:hover { background: #e0eae6; color: #183f34; }
+.headerControls { display: flex; align-items: center; flex-shrink: 0; gap: 2px; }
+.body { min-height: 0; padding: 13px 16px 15px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.progress { display: flex; gap: 5px; margin-bottom: 13px; }
+.progress span { flex: 1; height: 3px; border-radius: 2px; background: #e4ece9; }
+.progress .progressActive { background: #138a70; }
+.stepTitle { margin: 0 0 8px; font-size: 16px; line-height: 1.35; font-weight: 650; letter-spacing: -.2px; }
+.description { margin: 0; color: #4b606c; font-size: 13px; line-height: 1.6; }
+.hint { display: flex; align-items: flex-start; gap: 8px; margin: 11px 0 0; padding: 9px 10px; background: #f2f7f5; border: 1px solid #dce8e3; border-radius: 7px; color: #3c6657; font-size: 12px; line-height: 1.5; }
+.hint svg { margin-top: 2px; }
+.footer { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid #e5edeb; background: #fff; }
+.previous, .next { display: inline-flex; justify-content: center; align-items: center; gap: 7px; min-height: 35px; padding: 8px 12px; border-radius: 7px; font-size: 12px; line-height: 1.4; font-weight: 600; }
+.previous { background: #f0f4f3; color: #4a635b; }
+.previous:hover:not(:disabled) { background: #e3ece8; }
+.next { background: #087f69; color: #fff; }
+.next:hover:not(:disabled) { background: #076853; }
+.previous:disabled, .next:disabled { opacity: .55; cursor: not-allowed; }
+.launcher:focus-visible, .close:focus-visible, .previous:focus-visible, .next:focus-visible, .expand:focus-visible { outline: 3px solid #3aa897; outline-offset: 2px; }
+.compactBody { min-height: 0; padding: 9px 10px; overflow-y: auto; }
+.compactBody p { margin: 0; color: #4b606c; font-size: 11px; line-height: 1.45; }
+.expand { margin-top: 7px; padding: 3px 0; background: transparent; color: #08765f; font-size: 11px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.screenReaderOnly, .panel[data-compact="true"] .heading { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.panel[data-compact="true"] { width: 136px; }
+.panel[data-compact="true"] .guideIcon { display: none; }
+.panel[data-compact="true"] .header { padding: 7px 8px; gap: 2px; }
+.panel[data-compact="true"] .counter { margin: 0; font-size: 11px; white-space: nowrap; }
+.panel[data-compact="true"] .close { width: 25px; height: 25px; }
+.panel[data-compact="true"] .footer { padding: 8px; gap: 5px; }
+.panel[data-compact="true"] .previous { width: 30px; min-height: 32px; padding: 6px; }
+.panel[data-compact="true"] .next { flex: 1; min-height: 32px; gap: 4px; padding: 6px; font-size: 11px; }
+
+@media (max-width: 600px) {
+  .panel { left: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: min(320px, calc(100vw - 24px)); max-height: 49dvh; }
+  .panel[data-compact="true"] { width: 128px; }
+  .header { padding: 10px 12px; }
+  .body { padding: 11px 13px 12px; }
+  .footer { padding: 9px 12px; }
+  .stepTitle { font-size: 15px; }
+  .description { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launcher, .close, .previous, .next, .expand { transition: none; }
+}

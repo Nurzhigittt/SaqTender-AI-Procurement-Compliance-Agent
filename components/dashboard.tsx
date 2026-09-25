@@ -6,6 +6,7 @@ import type { Assessment } from "@/lib/types";
 import { DEMO_COMPANY, SAMPLE_TENDER, SAMPLE_TENDER_RU, getSampleTender } from "@/lib/demo-data";
 import { Badge, StatusBadge, formatDate } from "./ui";
 import { AssessmentResults } from "./results";
+import { DemoWalkthrough } from "./demo-walkthrough";
 import { getDocumentTitle, LOCALE_COOKIE, translate, type Locale } from "@/lib/i18n";
 import { analyzeDemoTender } from "@/lib/mock-analysis";
 
@@ -69,6 +70,21 @@ export function Dashboard({ initialMode, initialNow, initialLocale }: { initialM
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function navigateDemo(target: "company-profile" | "tender-analyzer" | "requirements" | "deadlines" | "actions") {
+    if (target === "company-profile" || target === "tender-analyzer") { jump(target); return; }
+    if (!result || stale || reportLanguageMismatch || isLoading) return;
+    setTab(target);
+    setActiveNav("assessment");
+    requestAnimationFrame(() => {
+      if (target === "requirements") {
+        const row = document.querySelector<HTMLDetailsElement>('#assessment details[data-status="missing"]')
+          ?? document.querySelector<HTMLDetailsElement>('#assessment details[data-status="unknown"]');
+        if (row) row.open = true;
+      }
+      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   async function analyze() {
     if (isLoading) return;
     if (!tenderText.trim()) { setError(tx("Add some tender text before running a compliance check.", "Добавьте текст тендера перед запуском проверки.")); textRef.current?.focus(); return; }
@@ -114,7 +130,7 @@ export function Dashboard({ initialMode, initialNow, initialLocale }: { initialM
     <div className="main-shell">
       <header className="topbar"><div className="breadcrumb"><span className="mobile-brand"><ShieldCheck size={21} /> SaqTender AI</span><span className="desktop-crumb">{tx("Workspace", "Рабочее пространство")} <ChevronRight size={14} /> <strong>{tx("Compliance overview", "Проверка требований")}</strong></span></div><div className="header-right"><div className="language-switch" role="group" aria-label={tx("Interface language", "Язык интерфейса")}><button type="button" lang="ru" aria-label="Русский" aria-pressed={locale === "ru"} disabled={isLoading} onClick={() => changeLocale("ru")}>RU</button><button type="button" lang="en" aria-label="English" aria-pressed={locale === "en"} disabled={isLoading} onClick={() => changeLocale("en")}>EN</button></div><Badge tone={mode === "demo" ? "amber" : "green"} dot>{mode === "demo" ? tx("Demo Mode", "Демо-режим") : tx("Live AI", "Онлайн-ИИ")}</Badge><span className="topbar-divider" /><span className="header-avatar">OB</span></div></header>
       <main id="overview" className="workspace-main">
-        <div className="page-heading"><div><div className="eyebrow">{tx("PROCUREMENT COMPLIANCE AGENT", "ИИ-ПОМОЩНИК ПО ТЕНДЕРАМ")}</div><h1>{tx("Clarity before you submit", "Всё ясно до подачи заявки")}<span>.</span></h1><p>{tx("Your documents, tender requirements, and next steps. In one place.", "Документы, требования тендера и план действий — в одном месте.")}</p></div><div className="today-label"><CalendarClock size={16} /><span>{formatDate(initialNow, false, locale)}<small>{tx("Asia/Almaty · UTC+5", "Алматы · UTC+5")}</small></span></div></div>
+        <div className="page-heading"><div><div className="eyebrow">{tx("PROCUREMENT COMPLIANCE AGENT", "ИИ-ПОМОЩНИК ПО ТЕНДЕРАМ")}</div><h1>{tx("Clarity before you submit", "Всё ясно до подачи заявки")}<span>.</span></h1><p>{tx("Your documents, tender requirements, and next steps. In one place.", "Документы, требования тендера и план действий — в одном месте.")}</p></div><div className="page-heading-tools"><div className="today-label"><CalendarClock size={16} /><span>{formatDate(initialNow, false, locale)}<small>{tx("Asia/Almaty · UTC+5", "Алматы · UTC+5")}</small></span></div><DemoWalkthrough locale={locale} hasCurrentReport={!!result && !stale && !reportLanguageMismatch} isLoading={isLoading} onNavigate={navigateDemo} /></div></div>
         <div className="demo-notice"><span className="notice-symbol"><Info size={17} /></span><p><strong>{tx("This is a demo workspace.", "Это демонстрационная версия.")}</strong> {tx("Company and sample tender data are fictional.", "Компания и образец тендера вымышлены.")} {mode === "demo" ? tx("Checks use a deterministic demo, with no live AI call.", "Проверка работает по заданным правилам, без обращения к ИИ.") : tx("Checks use live AI. Submitted text is sent to OpenAI.", "Проверку выполняет ИИ. Введённый текст передаётся в OpenAI.")}</p><button onClick={() => helpDialog.current?.showModal()} aria-label={tx("Read demo guide", "Открыть описание демонстрации")}><ArrowUpRight size={16} /></button></div>
 
         <section className="stats-grid" aria-label={tx("Compliance overview", "Проверка требований")}>
@@ -157,7 +173,7 @@ export function Dashboard({ initialMode, initialNow, initialLocale }: { initialM
 
         <section id="assessment" className="results-section" ref={resultsRef} tabIndex={-1} aria-label={tx("Compliance assessment", "Результат проверки требований")}>
           {reportLanguageMismatch && <div className="stale-notice" role="status"><Info size={18} /><p>{tx("This report was generated in Russian. Run a new check for an English report. Source quotes always keep their original language.", "Этот отчёт сформирован на английском. Повторите проверку, чтобы получить русский отчёт. Цитаты сохраняют язык оригинала.")}</p><button onClick={analyze} disabled={isLoading}><RotateCcw size={14} />{tx("Run again", "Повторить")}</button></div>}
-          {assessment ? <AssessmentResults locale={locale} assessment={assessment} mode={result!.mode} analyzedAt={result!.analyzedAt} stale={stale} tab={tab} setTab={setTab} now={initialNow} onRerun={analyze} isLoading={isLoading} /> : <div className="empty-results"><div className="empty-result-icon"><ScanLine size={27} /><span><Sparkles size={12} /></span></div><div><h2>{tx("A clearer picture starts with one check.", "Одна проверка — понятный план действий.")}</h2><p>{tx("Run the analyzer to see requirements, risks, and what to do next.", "Запустите анализ, чтобы увидеть требования, риски и рекомендации.")}</p></div><div className="empty-steps"><span><Check size={14} /> {tx("Match documents", "Сопоставление документов")}</span><span><Clock3 size={14} /> {tx("Extract deadlines", "Извлечение сроков")}</span><span><Bell size={14} /> {tx("Draft reminders", "Черновики напоминаний")}</span></div></div>}
+          {assessment ? <AssessmentResults reportLanguageMismatch={reportLanguageMismatch} locale={locale} assessment={assessment} mode={result!.mode} analyzedAt={result!.analyzedAt} stale={stale} tab={tab} setTab={setTab} now={initialNow} onRerun={analyze} isLoading={isLoading} /> : <div className="empty-results"><div className="empty-result-icon"><ScanLine size={27} /><span><Sparkles size={12} /></span></div><div><h2>{tx("A clearer picture starts with one check.", "Одна проверка — понятный план действий.")}</h2><p>{tx("Run the analyzer to see requirements, risks, and what to do next.", "Запустите анализ, чтобы увидеть требования, риски и рекомендации.")}</p></div><div className="empty-steps"><span><Check size={14} /> {tx("Match documents", "Сопоставление документов")}</span><span><Clock3 size={14} /> {tx("Extract deadlines", "Извлечение сроков")}</span><span><Bell size={14} /> {tx("Draft reminders", "Черновики напоминаний")}</span></div></div>}
         </section>
 
         <footer className="page-footer"><span><ShieldCheck size={15} /> SaqTender AI <span className="footer-dot">·</span> {tx("Built for better-informed bids.", "Принимайте решения на основе фактов.")}</span><button onClick={() => helpDialog.current?.showModal()}><BookOpen size={14} /> {tx("Responsible AI & demo guide", "Об ИИ и демонстрации")}</button></footer>

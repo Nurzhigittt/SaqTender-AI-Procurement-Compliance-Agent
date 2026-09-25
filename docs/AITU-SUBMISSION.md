@@ -18,13 +18,17 @@ The current demonstration uses a fictional company and a fictional school-constr
 
 The prototype includes a server-side integration with the OpenAI Agents SDK. The compliance agent is designed to extract requirements and deadlines from supplied tender text, retrieve the demo company profile through a tool, compare the available evidence and produce a structured assessment with draft alerts. Each requirement and deadline includes a source snippet, and insufficient evidence is marked as unknown.
 
-We are at the demo-MVP stage. The app also provides a clearly labeled deterministic Demo Mode that works without an API key. The live AI integration still requires an end-to-end run with an API key before we claim it as verified. Official procurement data access, real company pilots and production monitoring remain future work.
+We are at the demo-MVP stage. The public application currently runs in a clearly labeled deterministic Demo Mode that works without an API key. The live AI integration is implemented but has not yet completed a verified end-to-end run. Official procurement data access, real company pilots and production monitoring remain future work.
 
 After a successful live check, replace only the sentence about verification with: “We have verified the live AI workflow using a fictional sample tender.” Do not imply that a successful sample run validates legal correctness or production readiness.
 
+Presenter note: the earlier production attempt in Live AI mode returned HTTP 502, and its cause is unknown. Do not attribute it to billing, quota or another cause without evidence, and do not present the current demo output as a model response.
+
 ## 4. What results have you achieved?
 
-We have implemented a demonstration workflow with a company document profile, editable tender input, structured requirements and deadline assessment, source evidence, recommended actions and draft alert records. The prototype supports deterministic Demo Mode and includes a server-side AI integration.
+We have implemented a demonstration workflow with a company document profile, editable tender input, structured requirements and deadline assessment, source evidence, recommended actions and draft alert records. A three-part overview highlights a document finding, a deadline and the next action. Users can download the full report as HTML and print it or save it as PDF through their browser. A five-step walkthrough supports demonstrations in Russian and English.
+
+The public sample workflow was verified in Demo Mode on 25 September 2026: HTTP 200, four requirements, two deadlines and six draft reminders. The production build and 38 automated regression checks pass. These results demonstrate the implemented workflow; they do not establish AI accuracy or legal correctness.
 
 We have not yet validated the product with real customer pilots and do not claim users, revenue, competition awards or measured business impact. Our next milestone is to test the workflow with procurement specialists and measure extraction accuracy, review time and usefulness of the identified document gaps.
 
@@ -32,7 +36,7 @@ We have not yet validated the product with real customer pilots and do not claim
 
 Attach a short recording of the working sample workflow. State **Demo Mode** clearly if the recording uses deterministic analysis. A presentation has not been created as part of this code deliverable; do not claim an attached deck unless you attach one.
 
-Suggested recording sequence: company profile → sample tender → run analysis → evidence and missing work-experience document → deadline and draft reminders → limitations and next milestone.
+Suggested recording sequence: company profile → sample tender → run analysis → review priorities and missing work-experience evidence → deadlines and draft reminders → actions and report download → limitations and next milestone. The built-in **Demo walkthrough / Сценарий показа** helps navigate these steps; it does not run the analysis for you.
 
 The interface defaults to Russian; use the **RU / EN** switch if an English recording is preferable. The selected language controls interface text and the assessment narrative. Evidence quotes retain their original source language, including when an English tender is analyzed in Russian.
 
@@ -40,7 +44,7 @@ The interface defaults to Russian; use the **RU / EN** switch if an English reco
 
 [SaqTender AI — public demo](https://saq-tender-ai-procurement-complianc.vercel.app/)
 
-Verified on 24 September 2026 in a clean browser without authentication. The public application currently uses deterministic Demo Mode.
+The public deployment currently uses `DEMO_MODE=true`. Its sample analysis was verified on 25 September 2026 with HTTP 200, four requirements, two deadlines and six draft reminders. Public access does not require a Vercel account. A successful live AI analysis has not yet been verified.
 
 Source code: [GitHub repository](https://github.com/Nurzhigittt/SaqTender-AI-Procurement-Compliance-Agent).
 
@@ -62,6 +66,8 @@ Source code: [GitHub repository](https://github.com/Nurzhigittt/SaqTender-AI-Pro
 
 Отдельно видны сроки подачи и обеспечения заявки. Система создаёт черновики напоминаний за семь дней, три дня и сутки. Они пока никуда не отправляются.
 
+Краткий обзор помогает выбрать следующий шаг. Полный отчёт можно скачать в HTML, затем распечатать или сохранить в PDF.
+
 Это поддержка решения, а не официальная проверка допуска. Следующий шаг — проверить качество извлечения и пользу сценария с тендерными специалистами».
 
 If recording verified live mode, replace the Demo Mode sentence with: «Сейчас выполняется реальный запрос к модели. Агент получает профиль компании через инструмент и возвращает структурированный результат с доказательствами из текста». Use that wording only after verifying the actual live run shown in the recording.
@@ -79,4 +85,4 @@ If recording verified live mode, replace the Demo Mode sentence with: «Сейч
 
 [GitHub repository](https://github.com/Nurzhigittt/SaqTender-AI-Procurement-Compliance-Agent)
 
-Public demo: https://saq-tender-ai-procurement-complianc.vercel.app/
+Public demo: [SaqTender AI](https://saq-tender-ai-procurement-complianc.vercel.app/).

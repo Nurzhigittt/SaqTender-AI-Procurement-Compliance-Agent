@@ -6,7 +6,7 @@ SaqTender AI helps a tender specialist compare the requirements in a tender with
 
 The initial audience is construction, design and engineering companies participating in procurement in Kazakhstan. This prototype demonstrates one complete review workflow using the fictional **OrdaBuild Demo LLP** and a fictional school-construction tender. It does not connect to procurement portals or determine official eligibility.
 
-**[Open the public demo](https://saq-tender-ai-procurement-complianc.vercel.app/)** — runs in deterministic Demo Mode and is accessible without a Vercel account.
+**[Open the public demo](https://saq-tender-ai-procurement-complianc.vercel.app/)** — available in Russian and English, without a Vercel account. The public deployment currently runs with `DEMO_MODE=true`. On 25 September 2026, the sample returned HTTP 200 with four requirements, two deadlines and six draft reminders. This is deterministic demo output, not a verified response from a live AI model.
 
 ## What the demo does
 
@@ -16,8 +16,13 @@ The initial audience is construction, design and engineering companies participa
 4. Compares requirements with the supplied profile.
 5. Displays a requirements matrix, risk assessment and recommended actions.
 6. Creates **draft** reminders 7 days, 3 days and 24 hours before each extracted deadline.
+7. Highlights three review priorities: a document finding, a deadline and the next recommended action, with links to the report details.
+8. Downloads the full assessment as a standalone HTML report, including source quotes, mode, draft alerts and limitations. Open the downloaded file to print it or save a PDF through the browser's print dialog.
+9. Provides a five-step **Demo walkthrough / Сценарий показа** in Russian and English: company profile → tender and check → evidence → deadlines and drafts → actions and export.
 
 The application does not send notifications or schedule background jobs. Draft alerts are part of the returned assessment.
+
+The walkthrough only helps navigate the interface. It does not replace tender text or start an analysis. Its report steps require a current completed assessment. Downloading is also disabled while the report needs a new check.
 
 ## Interface languages
 
@@ -66,10 +71,10 @@ npm test
 ## Verification
 
 - `npm install` and the optimized production build complete successfully.
-- `npm test`: 17 tests pass, including evidence/date validation and the real Agents SDK with an intercepted, offline provider transport.
+- `npm test`: 38 tests pass, covering evidence/date validation, localization, error handling, HTML report export and the real Agents SDK with an intercepted, offline provider transport. These are technical regression checks, not a measured accuracy score on real tenders.
 - Browser checks cover sample analysis, all report tabs, expanded evidence, edited-text behavior, validation errors, mobile widths (320px and 390px), and 200% zoom.
-- Published production demo checked on 24 September 2026: public access, sample API response, all result tabs, exact evidence and a 390px mobile viewport passed.
-- A real OpenAI API request is **not yet verified** because no API key was provided. Offline SDK tests do not replace that check.
+- The public deployment was rechecked on 25 September 2026 in Demo Mode: the sample API request returned HTTP 200 with four requirements, two deadlines and six draft reminders. Earlier production browser checks covered public access, report tabs, source evidence and a 390px mobile viewport.
+- A real OpenAI API analysis is **not yet verified**. An earlier production attempt in Live AI mode returned HTTP 502; its cause has not been established. The public demonstration now uses `DEMO_MODE=true`. Offline SDK tests do not replace a successful live check.
 
 The build uses Next.js with webpack for compatibility with restricted local environments.
 
@@ -89,7 +94,7 @@ The sample tender is the recommended presentation path. Its fixed deadlines are 
 
 For **Live AI** mode, set a valid `OPENAI_API_KEY`, select an available model if needed, leave `DEMO_MODE=false`, and restart the server or redeploy. Run the sample and confirm the live-mode label, evidence, structured result and draft alerts. A model or timeout failure returns a retryable error; it should never be represented as a successful live analysis.
 
-The project was prepared without an API key. Live execution must be verified with a funded API account before describing it as tested in a submission or demonstration.
+Live execution must be verified with an available API account before describing it as tested in a submission or demonstration. Provider failures return localized messages for unavailable credits or quota, temporary rate limits, credentials, and model access. Raw provider errors, keys, and submitted tender text are not exposed in these messages.
 
 ## Deploy to Vercel
 
@@ -104,7 +109,7 @@ Environment changes require a new deployment. Live requests are subject to model
 ## Data handling and limitations
 
 - No database, user accounts, uploads, registry integration, background monitoring or document-authenticity checks.
-- The application does not persist submitted text or assessments to application storage. Reloading starts a fresh workflow.
+- The application does not persist submitted text or assessments to application storage. Reloading starts a fresh workflow; only the interface-language preference is remembered in a cookie. A report you explicitly download is saved on your device and can contain tender excerpts and assessment data.
 - In live mode, tender text and the demo company profile are sent to OpenAI to generate the assessment. Provider processing and retention policies still apply; the absence of an application database is not a promise that no external service processes the data.
 - Document dates and statuses are fictional. Time-sensitive interface labels use the current date; the sample itself retains its fixed September 2026 deadlines. There is no verified company registration, license, tax status, supplier blacklist or manufacturer-registry lookup.
 - No legal advice or official eligibility determination. Extraction and matching can be incomplete or incorrect.
