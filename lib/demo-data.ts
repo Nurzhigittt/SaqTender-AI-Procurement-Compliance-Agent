@@ -1,5 +1,6 @@
 import type { CompanyProfile } from "./types";
 import type { Locale } from "./i18n";
+import { getCompanyEvidence, normalizeCompanyProfile, profileFingerprint } from "./company-profile";
 
 export const DEMO_COMPANY: CompanyProfile = {
   name: "OrdaBuild Demo LLP",
@@ -18,8 +19,16 @@ export const DISCLAIMER = "Decision support only. This assessment compares the p
 
 export const DISCLAIMER_RU = "Инструмент поддержки решений. Оценка сопоставляет предоставленный текст тендера с профилем вымышленной компании. Официальное право на участие не проверено. Перед принятием решения изучите полную документацию тендера, оригиналы документов и официальные источники. Черновики напоминаний не запланированы и не отправляются.";
 
-export function getDisclaimer(locale: Locale): string {
-  return locale === "ru" ? DISCLAIMER_RU : DISCLAIMER;
+export function getDisclaimer(locale: Locale, isDemo = true): string {
+  const text = locale === "ru" ? DISCLAIMER_RU : DISCLAIMER;
+  return isDemo ? text : locale === "ru"
+    ? text.replace("профилем вымышленной компании", "профилем компании, заполненным пользователем; подлинность документов не проверена")
+    : text.replace("a fictional demo company profile", "a user-provided company profile; document authenticity has not been verified");
+}
+
+export function resolveCompanyProfile(value: CompanyProfile = DEMO_COMPANY): CompanyProfile {
+  const profile = normalizeCompanyProfile(value);
+  return { ...profile, isDemo: profileFingerprint({ ...profile, isDemo: true }) === profileFingerprint(DEMO_COMPANY) };
 }
 
 export const SAMPLE_REQUIREMENTS = {
@@ -92,7 +101,4 @@ export function getSampleTender(locale: Locale): string {
 
 export const UNKNOWN_COMPANY_EVIDENCE = "The provided company profile does not establish this requirement.";
 
-export const COMPANY_EVIDENCE = Object.fromEntries(DEMO_COMPANY.documents.map((document) => [
-  document.id,
-  `${document.title}: ${document.status === "active" ? "Active" : document.status === "missing" ? "Missing" : "Not Verified"}${document.expiresAt ? `; expires ${document.expiresAt}` : ""}${document.updatedAt ? `; updated ${document.updatedAt}` : ""}.`,
-])) as Record<string, string>;
+export const COMPANY_EVIDENCE = getCompanyEvidence(DEMO_COMPANY);

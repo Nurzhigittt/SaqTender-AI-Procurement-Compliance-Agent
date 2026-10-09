@@ -1,4 +1,6 @@
-import { COMPANY_EVIDENCE, DEMO_COMPANY, UNKNOWN_COMPANY_EVIDENCE } from "./demo-data";
+import { DEMO_COMPANY, UNKNOWN_COMPANY_EVIDENCE } from "./demo-data";
+import { getCompanyEvidence } from "./company-profile";
+import type { CompanyProfile } from "./types";
 
 export type Locale = "ru" | "en";
 export const LOCALE_COOKIE = "saqtender_locale";
@@ -18,13 +20,14 @@ export function getDocumentTitle(id: string, locale: Locale): string {
 }
 
 /** Translate only trusted, known company-profile strings. Tender quotes are never translated. */
-export function translateCompanyEvidence(text: string, locale: Locale): string {
+export function translateCompanyEvidence(text: string, locale: Locale, profile: CompanyProfile = DEMO_COMPANY): string {
   if (locale === "en") return text;
   if (text === UNKNOWN_COMPANY_EVIDENCE) return "Данные профиля компании не позволяют подтвердить выполнение этого требования.";
-  const id = Object.keys(COMPANY_EVIDENCE).find(key => COMPANY_EVIDENCE[key] === text);
-  const document = DEMO_COMPANY.documents.find(item => item.id === id);
+  const evidence = getCompanyEvidence(profile);
+  const id = Object.keys(evidence).find(key => evidence[key] === text);
+  const document = profile.documents.find(item => item.id === id);
   if (!id || !document) return text;
-  const status = document.status === "active" ? "действует" : document.status === "missing" ? "отсутствует" : "не проверен";
+  const status = document.status === "active" ? profile.isDemo ? "действует" : "есть в профиле" : document.status === "missing" ? "отсутствует" : "не проверен";
   const date = (value: string) => value.split("-").reverse().join(".");
   return `${getDocumentTitle(id, locale)}: ${status}${document.expiresAt ? `; срок действия до ${date(document.expiresAt)}` : ""}${document.updatedAt ? `; обновлён ${date(document.updatedAt)}` : ""}.`;
 }

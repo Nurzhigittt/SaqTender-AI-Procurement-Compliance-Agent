@@ -8,7 +8,7 @@ import styles from "./report-actions.module.css";
 
 type Props = ReportExportInput & { disabled?: boolean };
 
-export function ReportActions({ assessment, mode, analyzedAt, locale, disabled = false }: Props) {
+export function ReportActions({ assessment, mode, analyzedAt, locale, companyProfile, disabled = false }: Props) {
   const [error, setError] = useState(false);
   const tx = (en: string, ru: string) => translate(locale, en, ru);
   function download() {
@@ -17,7 +17,7 @@ export function ReportActions({ assessment, mode, analyzedAt, locale, disabled =
     let url: string | undefined;
     let link: HTMLAnchorElement | undefined;
     try {
-      const input = { assessment, mode, analyzedAt, locale };
+      const input = { assessment, mode, analyzedAt, locale, companyProfile };
       const blob = new Blob([createReportHtml(input)], { type: "text/html;charset=utf-8" });
       url = URL.createObjectURL(blob);
       link = document.createElement("a");

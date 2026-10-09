@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeLiveTender } from "@/lib/agent";
 import { analyzeDemoTender } from "@/lib/mock-analysis";
+import { resolveCompanyProfile } from "@/lib/demo-data";
 import { getAnalysisMode } from "@/lib/server-config";
 import { getAnalysisFailure } from "@/lib/analysis-error";
 import type { Locale } from "@/lib/i18n";
@@ -60,8 +61,9 @@ export async function POST(request: NextRequest) {
   }
   if (body && typeof body === "object" && "locale" in body && (body.locale === "ru" || body.locale === "en")) locale = body.locale;
   const parsed = AnalyzeRequestSchema.safeParse(body);
-  if (!parsed.success) return error(tr("Enter tender text between 20 and 20,000 characters.", "Введите текст тендера длиной от 20 до 20 000 символов и выберите поддерживаемый язык."), 400);
+  if (!parsed.success) return error(tr("Check the company profile and enter tender text between 20 and 20,000 characters.", "Проверьте поля профиля и даты документов. Текст тендера должен содержать от 20 до 20 000 символов; язык — RU или EN."), 400);
   locale = parsed.data.locale;
+  const companyProfile = resolveCompanyProfile(parsed.data.companyProfile);
 
   const mode = getAnalysisMode();
   const controller = new AbortController();
@@ -76,8 +78,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const assessment = mode === "demo"
-      ? analyzeDemoTender(parsed.data.tenderText, locale)
-      : await analyzeLiveTender(parsed.data.tenderText, controller.signal, locale);
+      ? analyzeDemoTender(parsed.data.tenderText, locale, companyProfile)
+      : await analyzeLiveTender(parsed.data.tenderText, controller.signal, locale, companyProfile);
     const response: AnalyzeResponse = { assessment, mode, analyzedAt: new Date().toISOString() };
     return NextResponse.json(response, { headers: RESPONSE_HEADERS });
   } catch (cause) {

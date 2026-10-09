@@ -7,3 +7,4 @@ out/
 *.tsbuildinfo
 *.log
 .DS_Store
+evals/runs/

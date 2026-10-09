@@ -6,11 +6,11 @@ export function Badge({ children, tone = "neutral", dot = false }: { children: R
   return <span className={`badge badge-${tone}`}>{dot && <span className="badge-dot" />}{children}</span>;
 }
 
-export function StatusBadge({ status, locale = "en" }: { status: string; locale?: Locale }) {
+export function StatusBadge({ status, locale = "en", userReported = false }: { status: string; locale?: Locale; userReported?: boolean }) {
   const tx = (en: string, ru: string) => translate(locale, en, ru);
   const config: Record<string, { label: string; tone: string; icon: typeof Check }> = {
     met: { label: tx("Met", "Выполнено"), tone: "green", icon: Check },
-    active: { label: tx("Active", "Действует"), tone: "green", icon: Check },
+    active: { label: userReported ? tx("Available", "Есть в профиле") : tx("Active", "Действует"), tone: "green", icon: Check },
     missing: { label: tx("Missing", "Отсутствует"), tone: "red", icon: X },
     at_risk: { label: tx("At risk", "Есть риск"), tone: "amber", icon: AlertCircle },
     unknown: { label: tx("Unknown", "Нет данных"), tone: "neutral", icon: CircleHelp },

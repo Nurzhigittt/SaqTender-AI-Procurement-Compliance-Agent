@@ -1,5 +1,6 @@
-import { COMPANY_EVIDENCE, DEMO_COMPANY, UNKNOWN_COMPANY_EVIDENCE } from "./demo-data";
-import { AssessmentSchema, type Assessment, type Deadline } from "./types";
+import { DEMO_COMPANY, UNKNOWN_COMPANY_EVIDENCE } from "./demo-data";
+import { getCompanyEvidence } from "./company-profile";
+import { AssessmentSchema, type Assessment, type Deadline, type CompanyProfile } from "./types";
 
 /** Only explicit full dates with a time and timezone can become a deadline. */
 export function explicitDatesInEvidence(text: string): string[] {
@@ -49,15 +50,16 @@ export function validateGroundedDeadlines(deadlines: Deadline[], tenderText: str
   }
 }
 
-export function validateGroundedAssessment(value: unknown, tenderText: string): Assessment {
+export function validateGroundedAssessment(value: unknown, tenderText: string, companyProfile: CompanyProfile = DEMO_COMPANY): Assessment {
   const assessment = AssessmentSchema.parse(value);
+  const companyEvidence = getCompanyEvidence(companyProfile);
   for (const requirement of assessment.requirements) {
     if (!tenderText.includes(requirement.tenderEvidence)) throw new Error("Ungrounded requirement evidence");
-    const documentId = Object.keys(COMPANY_EVIDENCE).find((id) => COMPANY_EVIDENCE[id] === requirement.companyEvidence);
+    const documentId = Object.keys(companyEvidence).find((id) => companyEvidence[id] === requirement.companyEvidence);
     if (!documentId && requirement.companyEvidence !== UNKNOWN_COMPANY_EVIDENCE) {
       throw new Error("Ungrounded company evidence");
     }
-    const document = DEMO_COMPANY.documents.find((item) => item.id === documentId);
+    const document = companyProfile.documents.find((item) => item.id === documentId);
     if (requirement.status === "missing" && document?.status !== "missing") throw new Error("Unsupported missing-document claim");
     if (requirement.status === "met" && document?.status !== "active") throw new Error("Unsupported document-compliance claim");
     if (requirement.status === "at_risk" && !document) throw new Error("Unsupported document risk");

@@ -8,6 +8,7 @@ type WalkthroughTarget = "company-profile" | "tender-analyzer" | "requirements" 
 
 type DemoWalkthroughProps = {
   locale: "ru" | "en";
+  isDemoCompany?: boolean;
   hasCurrentReport: boolean;
   isLoading: boolean;
   onNavigate: (target: WalkthroughTarget) => void;
@@ -15,7 +16,7 @@ type DemoWalkthroughProps = {
 
 const TARGETS: WalkthroughTarget[] = ["company-profile", "tender-analyzer", "requirements", "deadlines", "actions"];
 
-export function DemoWalkthrough({ locale, hasCurrentReport, isLoading, onNavigate }: DemoWalkthroughProps) {
+export function DemoWalkthrough({ locale, hasCurrentReport, isLoading, onNavigate, isDemoCompany = true }: DemoWalkthroughProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [requestedStep, setRequestedStep] = useState(0);
   const [compactOverride, setCompactOverride] = useState<{ step: number; value: boolean } | null>(null);
@@ -32,7 +33,7 @@ export function DemoWalkthrough({ locale, hasCurrentReport, isLoading, onNavigat
   const steps = [
     {
       title: tr("Start with the company", "Начните с компании"),
-      description: tr("Show the document profile: what is recorded, what is missing, and what still needs verification. Explain that this company and its records are fictional.", "Покажите профиль: какие документы указаны, чего не хватает и что ещё нужно проверить. Объясните, что компания и её записи вымышлены."),
+      description: isDemoCompany ? tr("Show the document profile: what is recorded, what is missing, and what still needs verification. Explain that this company and its records are fictional.", "Покажите профиль: какие документы указаны, чего не хватает и что ещё нужно проверить. Объясните, что компания и её записи вымышлены.") : tr("Show the profile you entered and its document records. Explain that these statements and original documents have not been officially verified.", "Покажите заполненный профиль и записи о документах. Объясните, что эти сведения и оригиналы не прошли официальную проверку."),
     },
     {
       title: tr("Review the tender and run a check", "Изучите тендер и запустите проверку"),

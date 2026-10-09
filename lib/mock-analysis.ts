@@ -1,15 +1,17 @@
 import { createDraftAlerts } from "./alerts";
-import { COMPANY_EVIDENCE, getDisclaimer, SAMPLE_REQUIREMENTS, SAMPLE_REQUIREMENTS_RU, SAMPLE_TENDER, SAMPLE_TENDER_RU, UNKNOWN_COMPANY_EVIDENCE } from "./demo-data";
+import { COMPANY_EVIDENCE, DEMO_COMPANY, getDisclaimer, resolveCompanyProfile, SAMPLE_REQUIREMENTS, SAMPLE_REQUIREMENTS_RU, SAMPLE_TENDER, SAMPLE_TENDER_RU, UNKNOWN_COMPANY_EVIDENCE } from "./demo-data";
+import { assessSampleProfile } from "./profile-assessment";
 import { explicitDatesInEvidence, validateGroundedAssessment } from "./grounding";
 import type { Locale } from "./i18n";
-import type { Action, Assessment, Deadline, Requirement } from "./types";
+import type { Action, Assessment, CompanyProfile, Deadline, Requirement } from "./types";
 
 function textLines(text: string): string[] {
   return text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
 }
 
 /** Conservative, repeatable local demonstration; it never calls an AI model. */
-export function analyzeDemoTender(tenderText: string, locale: Locale = "en"): Assessment {
+export function analyzeDemoTender(tenderText: string, locale: Locale = "en", companyProfile: CompanyProfile = DEMO_COMPANY): Assessment {
+  const profile = resolveCompanyProfile(companyProfile);
   const tr = (english: string, russian: string) => locale === "ru" ? russian : english;
   const lines = textLines(tenderText);
   const deadlines: Deadline[] = [];
@@ -77,7 +79,7 @@ export function analyzeDemoTender(tenderText: string, locale: Locale = "en"): As
 
   if (!deadlines.length) actions.push({ priority: "high", title: tr("Verify submission deadlines", "Уточните сроки подачи заявки"), description: tr("No supported deadline with an explicit full date, time, and timezone was detected. Check the notice manually; missing extraction does not mean there is no deadline.", "Не найдено срока с явно указанными полной датой, временем и часовым поясом в поддерживаемом формате. Проверьте объявление вручную: отсутствие извлечённой даты не означает отсутствия срока.") });
 
-  return validateGroundedAssessment({
+  const assessment: Assessment = {
     summary: exactSample
       ? tr("Manual verification required. The fictional company is missing the work experience confirmation required by this sample tender. Its expert opinion remains valid through submission, while financial-document sufficiency needs review. Two tender deadlines produce six draft reminders.", "Требуется ручная проверка. У вымышленной компании отсутствует подтверждение опыта работ, обязательное для этого демо-тендера. Экспертное заключение действует весь период подачи заявок, а достаточность финансовых документов требует проверки. Для двух сроков тендера подготовлены шесть черновиков напоминаний.")
       : tr("Manual verification required. This is a deterministic demonstration for edited text, not an AI interpretation. Candidate requirements remain unknown; only supported explicit deadline formats are extracted. No official eligibility conclusion can be drawn.", "Требуется ручная проверка. Изменённый текст обработан по фиксированным правилам демо-режима, без интерпретации ИИ. Статусы возможных требований не определены; извлечены только явно указанные сроки в поддерживаемом формате. Официальный вывод о праве на участие не сделан."),
@@ -87,6 +89,8 @@ export function analyzeDemoTender(tenderText: string, locale: Locale = "en"): As
     deadlines,
     actions,
     alerts: createDraftAlerts(deadlines, locale),
-    disclaimer: getDisclaimer(locale),
-  }, tenderText);
+    disclaimer: getDisclaimer(locale, profile.isDemo),
+  };
+  if (exactSample && !profile.isDemo) return assessSampleProfile(assessment, profile, tenderText, locale);
+  return validateGroundedAssessment(assessment, tenderText, profile);
 }

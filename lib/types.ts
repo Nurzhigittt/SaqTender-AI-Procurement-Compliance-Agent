@@ -37,9 +37,30 @@ export const AssessmentSchema = z.object({
   disclaimer: z.string().min(1).max(1500),
 }).strict();
 
+export const COMPANY_DOCUMENT_IDS = ["construction-license", "expert-opinion", "financial-report", "work-experience", "manufacturer-registry"] as const;
+const CalendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && value >= "1900-01-01" && value <= "2200-12-31";
+});
+export const CompanyDocumentSchema = z.object({
+  id: z.enum(COMPANY_DOCUMENT_IDS),
+  title: z.string().trim().min(1).max(100),
+  status: z.enum(["active", "missing", "not_verified"]),
+  expiresAt: CalendarDateSchema.nullable(),
+  updatedAt: CalendarDateSchema.nullable(),
+}).strict();
+export const CompanyProfileSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  industry: z.string().trim().min(2).max(120),
+  isDemo: z.boolean(),
+  documents: z.array(CompanyDocumentSchema).length(COMPANY_DOCUMENT_IDS.length)
+    .refine(documents => new Set(documents.map(document => document.id)).size === COMPANY_DOCUMENT_IDS.length),
+}).strict();
+
 export const AnalyzeRequestSchema = z.object({
   tenderText: z.string().trim().min(20, "Enter at least 20 characters of tender text.").max(20000, "Tender text must be 20,000 characters or fewer."),
   locale: z.enum(["ru", "en"]).default("en"),
+  companyProfile: CompanyProfileSchema.optional(),
 }).strict();
 
 export type Requirement = z.infer<typeof RequirementSchema>;
@@ -49,20 +70,8 @@ export type Alert = z.infer<typeof AlertSchema>;
 export type Assessment = z.infer<typeof AssessmentSchema>;
 export type AnalysisMode = "demo" | "live";
 
-export interface CompanyDocument {
-  id: string;
-  title: string;
-  status: "active" | "missing" | "not_verified";
-  expiresAt: string | null;
-  updatedAt: string | null;
-}
-
-export interface CompanyProfile {
-  name: string;
-  industry: string;
-  isDemo: true;
-  documents: CompanyDocument[];
-}
+export type CompanyDocument = z.infer<typeof CompanyDocumentSchema>;
+export type CompanyProfile = z.infer<typeof CompanyProfileSchema>;
 
 export interface AnalyzeResponse {
   assessment: Assessment;

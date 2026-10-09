@@ -1,14 +1,15 @@
 "use client";
 
 import { ArrowRight, Bell, CalendarClock, Check, ChevronDown, CircleHelp, Clock3, FileCheck2, Info, ListChecks, Quote, RotateCcw, ShieldCheck, TriangleAlert } from "lucide-react";
-import type { Assessment } from "@/lib/types";
+import { DEMO_COMPANY } from "@/lib/demo-data";
+import type { Assessment, CompanyProfile } from "@/lib/types";
 import { translate, translateCompanyEvidence, type Locale } from "@/lib/i18n";
 import { Badge, StatusBadge, formatDate } from "./ui";
 import { ReportActions } from "./report-actions";
 
-type Props = { assessment: Assessment; mode: "demo" | "live"; analyzedAt: string; stale: boolean; tab: string; setTab: (tab: string) => void; now: string; onRerun: () => void; isLoading: boolean; locale: Locale; reportLanguageMismatch?: boolean };
+type Props = { assessment: Assessment; mode: "demo" | "live"; analyzedAt: string; stale: boolean; tab: string; setTab: (tab: string) => void; now: string; onRerun: () => void; isLoading: boolean; locale: Locale; reportLanguageMismatch?: boolean; companyProfile?: CompanyProfile; profileChanged?: boolean };
 
-export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, setTab, now, onRerun, isLoading, locale, reportLanguageMismatch = false }: Props) {
+export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, setTab, now, onRerun, isLoading, locale, reportLanguageMismatch = false, companyProfile = DEMO_COMPANY, profileChanged = false }: Props) {
   const tx = (en: string, ru: string) => translate(locale, en, ru);
   const tabs = [
     { id: "requirements", label: tx("Requirements", "Требования"), count: assessment.requirements.length, icon: ListChecks },
@@ -55,9 +56,9 @@ export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, se
   return <>
     <div className="results-title">
       <div><span className="section-kicker">{tx("03 / YOUR ASSESSMENT", "03 / РЕЗУЛЬТАТ ПРОВЕРКИ")}</span><h2>{tx("From requirements to next steps.", "От требований к плану действий.")}</h2></div>
-      <div className="report-heading-actions"><span className="analyzed-at"><Check size={13} /> {mode === "demo" ? tx("Demo analysis", "Демоанализ") : tx("AI analysis", "ИИ-анализ")} · {formatDate(analyzedAt, true, locale)}</span><ReportActions assessment={assessment} mode={mode} analyzedAt={analyzedAt} locale={locale} disabled={stale || reportLanguageMismatch || isLoading} /></div>
+      <div className="report-heading-actions"><span className="report-company">{companyProfile.name}</span><span className="analyzed-at"><Check size={13} /> {mode === "demo" ? tx("Demo analysis", "Демоанализ") : tx("AI analysis", "ИИ-анализ")} · {formatDate(analyzedAt, true, locale)}</span><ReportActions companyProfile={companyProfile} assessment={assessment} mode={mode} analyzedAt={analyzedAt} locale={locale} disabled={stale || reportLanguageMismatch || isLoading} /></div>
     </div>
-    {stale && <div className="stale-notice" role="status"><TriangleAlert size={18} /><p><strong>{tx("Tender text has changed.", "Текст тендера изменился.")}</strong> {tx("This report refers to the previous text. Run a new check before using it.", "Отчёт относится к предыдущему тексту. Запустите проверку заново, прежде чем использовать его.")}</p><button onClick={onRerun} disabled={isLoading}><RotateCcw size={14} /> {tx("Run again", "Повторить")}</button></div>}
+    {stale && <div className="stale-notice" role="status"><TriangleAlert size={18} /><p><strong>{profileChanged ? tx("Company profile has changed.", "Профиль компании изменился.") : tx("Tender text has changed.", "Текст тендера изменился.")}</strong> {tx("This report refers to previous inputs. Run a new check before using it.", "Отчёт относится к предыдущим данным. Запустите проверку заново, прежде чем использовать его.")}</p><button onClick={onRerun} disabled={isLoading}><RotateCcw size={14} /> {tx("Run again", "Повторить")}</button></div>}
     <div className={`assessment-summary risk-${assessment.overallRisk}`}>
       <div className="assessment-main">
         <span className="assessment-icon">{assessment.overallRisk === "low" ? <ShieldCheck size={27} /> : <TriangleAlert size={26} />}</span>
@@ -105,8 +106,8 @@ export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, se
           <div className="tab-description"><p>{tx("Requirements matrix", "Матрица требований")} <span>{tx("Each finding is linked to the provided tender.", "Каждый вывод подкреплён текстом тендера.")}</span></p><span className="expand-hint">{tx("Expand a row to inspect evidence", "Раскройте строку, чтобы увидеть обоснование")} <ChevronDown size={13} /></span></div>
           <div className="requirements-header"><span>{tx("TENDER REQUIREMENT", "ТРЕБОВАНИЕ ТЕНДЕРА")}</span><span>{tx("COMPANY EVIDENCE", "ДАННЫЕ КОМПАНИИ")}</span><span>{tx("STATUS", "СТАТУС")}</span><span /></div>
           {assessment.requirements.length ? assessment.requirements.map((r, index) => <details id={`requirement-${index}`} className="requirement-row" data-status={r.status} key={index}>
-            <summary><span className="requirement-title"><span className="row-number">{String(index + 1).padStart(2, "0")}</span><strong>{r.title}</strong></span><span className="company-evidence-preview">{translateCompanyEvidence(r.companyEvidence, locale)}</span><StatusBadge status={r.status} locale={locale} /><ChevronDown className="expand-icon" size={16} /></summary>
-            <div className="requirement-expanded"><div><span className="evidence-label"><Quote size={13} /> {tx("TENDER EVIDENCE", "ЦИТАТА ИЗ ТЕНДЕРА")}</span><blockquote>{r.tenderEvidence}</blockquote></div><div><span className="evidence-label"><FileCheck2 size={13} /> {tx("COMPANY EVIDENCE", "ДАННЫЕ КОМПАНИИ")}</span><p>{translateCompanyEvidence(r.companyEvidence, locale)}</p><span className="evidence-label">{tx("ASSESSMENT", "ОЦЕНКА")}</span><p>{r.explanation}</p></div></div>
+            <summary><span className="requirement-title"><span className="row-number">{String(index + 1).padStart(2, "0")}</span><strong>{r.title}</strong></span><span className="company-evidence-preview">{translateCompanyEvidence(r.companyEvidence, locale, companyProfile)}</span><StatusBadge status={r.status} locale={locale} /><ChevronDown className="expand-icon" size={16} /></summary>
+            <div className="requirement-expanded"><div><span className="evidence-label"><Quote size={13} /> {tx("TENDER EVIDENCE", "ЦИТАТА ИЗ ТЕНДЕРА")}</span><blockquote>{r.tenderEvidence}</blockquote></div><div><span className="evidence-label"><FileCheck2 size={13} /> {tx("COMPANY EVIDENCE", "ДАННЫЕ КОМПАНИИ")}</span><p>{translateCompanyEvidence(r.companyEvidence, locale, companyProfile)}</p><span className="evidence-label">{tx("ASSESSMENT", "ОЦЕНКА")}</span><p>{r.explanation}</p></div></div>
           </details>) : <EmptyDetail text={tx("No supported requirements were extracted. Add clearer tender text and run again.", "Подтверждённые требования не найдены. Добавьте более подробный текст тендера и повторите проверку.")} />}
         </>}
 

@@ -10,7 +10,7 @@ The initial audience is construction, design and engineering companies participa
 
 ## What the demo does
 
-1. Shows the company's document profile.
+1. Shows the company's document profile and lets the user edit its name, industry, document availability and dates. Saving to this browser is optional.
 2. Accepts an editable tender text, with a sample available to load.
 3. Extracts requirements and deadlines with direct text evidence.
 4. Compares requirements with the supplied profile.
@@ -36,8 +36,13 @@ Live mode uses the official OpenAI Agents SDK on the server. One specialist, **S
 
 Its tools are:
 
-- `getCompanyProfile`: returns the structured fictional company profile.
+- `getCompanyProfile`: returns the submitted company profile and canonical evidence strings (or the fictional sample when no profile is supplied).
+- `checkDocumentDates`: compares recorded expiry dates to evidenced deadlines using Asia/Almaty calendar days. This deterministic tool cannot verify document contents or legal sufficiency.
 - `createAlerts`: produces draft alert records from extracted deadlines.
+
+The server requires profile reading, calendar comparison and reminder creation for the final deadline set, in that order. Skipping a tool or changing the final dates without rerunning the dependent tools rejects the run. Company fields and tender text are untrusted data, never developer instructions.
+
+The profile editor marks user records as unverified. Changing the profile makes the previous report stale and disables export until another check succeeds. The report retains the company snapshot used for that check. An available document does not automatically mean a requirement is met.
 
 Zod validates incoming requests and structured assessment output. Every assessment sets `officialEligibilityVerified` to `false` and includes a decision-support disclaimer. Error responses are safe user-facing messages rather than internal exception details. The API key is used only on the server.
 
@@ -71,10 +76,12 @@ npm test
 ## Verification
 
 - `npm install` and the optimized production build complete successfully.
-- `npm test`: 38 tests pass, covering evidence/date validation, localization, error handling, HTML report export and the real Agents SDK with an intercepted, offline provider transport. These are technical regression checks, not a measured accuracy score on real tenders.
+- `npm test`: 56 tests pass, covering profile input and evidence, calendar comparisons, localization, error handling, HTML export, the benchmark grader and the real Agents SDK with intercepted offline provider transport. These are technical regression checks, not a measured accuracy score on real tenders.
 - Browser checks cover sample analysis, all report tabs, expanded evidence, edited-text behavior, validation errors, mobile widths (320px and 390px), and 200% zoom.
 - The public deployment was rechecked on 25 September 2026 in Demo Mode: the sample API request returned HTTP 200 with four requirements, two deadlines and six draft reminders. Earlier production browser checks covered public access, report tabs, source evidence and a 390px mobile viewport.
-- A real OpenAI API analysis is **not yet verified**. An earlier production attempt in Live AI mode returned HTTP 502; its cause has not been established. The public demonstration now uses `DEMO_MODE=true`. Offline SDK tests do not replace a successful live check.
+- A real OpenAI API analysis is **not yet verified**. On 9 October 2026, a production live request returned HTTP 502 with `ai_authentication_failed`. The configured OpenAI credentials were rejected. Demo Mode was restored and its API returned HTTP 200 with four requirements, two deadlines and six draft reminders. Offline SDK tests do not replace a successful live check.
+
+The [20-case synthetic benchmark](evals/README.md) has separate dataset-validation, demo-baseline and paid live-model commands. The demo passed 5/20 cases; no live-model score has been measured. Run `npm run eval:check` without credentials or `npm run eval:live -- --limit 3` after configuring a valid server key. The benchmark is not expert-approved and does not establish real-world accuracy.
 
 The build uses Next.js with webpack for compatibility with restricted local environments.
 
@@ -90,7 +97,7 @@ Keep credentials in `.env.local` locally and in deployment environment variables
 
 **Demo Mode** makes no OpenAI API calls. It is deterministic local analysis for demonstrating the workflow and is not evidence of a successful live AI request. The unchanged sample produces a predefined, evidence-checked assessment. Editing it switches to conservative requirement candidates marked `unknown`; only supported deadlines with an explicit full date, time and timezone are extracted. It never silently reuses the sample's conclusions for a different tender.
 
-The sample tender is the recommended presentation path. Its fixed deadlines are in September 2026; they are fictional dates, not current opportunities. An expert opinion valid through the sample's submission date is marked met for that stated period; its approaching expiry is a separate renewal recommendation. Financial-document sufficiency remains unknown because the profile does not establish the buyer's full criteria.
+The sample tender is the recommended presentation path. Its fixed deadlines are in September 2026; they are fictional dates, not current opportunities. For the original fictional profile, an expert opinion valid through the sample's submission date is marked met for that stated period; its expiry is a separate renewal recommendation. With a user-edited profile, the unchanged sample uses its recorded availability and dates, while document sufficiency remains unknown until originals are reviewed. Editing the tender switches back to conservative candidates.
 
 For **Live AI** mode, set a valid `OPENAI_API_KEY`, select an available model if needed, leave `DEMO_MODE=false`, and restart the server or redeploy. Run the sample and confirm the live-mode label, evidence, structured result and draft alerts. A model or timeout failure returns a retryable error; it should never be represented as a successful live analysis.
 
@@ -109,12 +116,12 @@ Environment changes require a new deployment. Live requests are subject to model
 ## Data handling and limitations
 
 - No database, user accounts, uploads, registry integration, background monitoring or document-authenticity checks.
-- The application does not persist submitted text or assessments to application storage. Reloading starts a fresh workflow; only the interface-language preference is remembered in a cookie. A report you explicitly download is saved on your device and can contain tender excerpts and assessment data.
-- In live mode, tender text and the demo company profile are sent to OpenAI to generate the assessment. Provider processing and retention policies still apply; the absence of an application database is not a promise that no external service processes the data.
-- Document dates and statuses are fictional. Time-sensitive interface labels use the current date; the sample itself retains its fixed September 2026 deadlines. There is no verified company registration, license, tax status, supplier blacklist or manufacturer-registry lookup.
+- Tender text and assessments are not persisted to application storage. The profile stays in the current tab unless the user selects **Remember this profile in this browser**; this saves only the profile in localStorage, accessible to other users of that browser. Unchecking and applying removes that saved copy. Language is remembered in a cookie. Downloaded reports are saved on the user's device.
+- In live mode, tender text and the supplied company profile are sent to OpenAI to generate the assessment. Provider processing and retention policies still apply; the absence of an application database is not a promise that no external service processes the data.
+- Default document dates/statuses are fictional; edited records are user statements and remain unverified. Time-sensitive interface labels use the current date; the sample retains fixed September 2026 deadlines. There is no verified company registration, license, tax status, supplier blacklist or manufacturer-registry lookup.
 - No legal advice or official eligibility determination. Extraction and matching can be incomplete or incorrect.
 - No email, Telegram or other notification delivery. Draft reminder times can already be in the past, particularly when using the fixed sample after its deadlines.
-- The current profile is a single demo company. This is not a production multi-tenant procurement platform.
+- There is one editable profile per tab/browser, not an authenticated multi-tenant company workspace. No original document contents are uploaded or checked.
 
 ## Roadmap
 
@@ -122,6 +129,6 @@ Environment changes require a new deployment. Live requests are subject to model
 2. Add authenticated company profiles, explicit retention controls and a reviewed document lifecycle.
 3. Evaluate authorized procurement and registry integrations before claiming automated verification.
 4. Add persistent reminders with consent, delivery status and timezone-aware scheduling.
-5. Build extraction evaluations and human review of evidence before expanding AI capabilities.
+5. Expand the synthetic evaluation set with held-out, permissioned tenders and specialist annotations; verify live quality before expanding AI capabilities.
 
 Submission copy and a Russian demonstration script are in [docs/AITU-SUBMISSION.md](docs/AITU-SUBMISSION.md).
