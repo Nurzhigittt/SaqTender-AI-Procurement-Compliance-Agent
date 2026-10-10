@@ -2,6 +2,7 @@ import "server-only";
 import { Agent, OpenAIProvider, Runner, setSensitiveDataLoggingEnabled, setTracingDisabled, tool } from "@openai/agents";
 import { z } from "zod";
 import { createDraftAlerts } from "./alerts";
+import { AnalysisRunError, type AnalysisStage } from "./analysis-diagnostics";
 import { getCompanyEvidence } from "./company-profile";
 import { compareDocumentDates } from "./document-dates";
 import { DEMO_COMPANY, getDisclaimer, resolveCompanyProfile, UNKNOWN_COMPANY_EVIDENCE } from "./demo-data";
@@ -14,16 +15,17 @@ setTracingDisabled(true);
 setSensitiveDataLoggingEnabled(false);
 
 function deadlineIdentity(deadlines: Deadline[]): string {
+  // Display titles may be rephrased; checked timestamps and source quotes must stay identical.
   return JSON.stringify(deadlines.map((item) => ({
-    title: item.title,
     date: new Date(item.date).toISOString(),
     tenderEvidence: item.tenderEvidence,
-  })).sort((a, b) => `${a.title}|${a.date}|${a.tenderEvidence}`.localeCompare(`${b.title}|${b.date}|${b.tenderEvidence}`)));
+  })).sort((a, b) => `${a.date}|${a.tenderEvidence}`.localeCompare(`${b.date}|${b.tenderEvidence}`)));
 }
 
 export async function analyzeLiveTender(tenderText: string, signal: AbortSignal, locale: Locale = "en", companyProfile: CompanyProfile = DEMO_COMPANY): Promise<Assessment> {
   const profile = resolveCompanyProfile(companyProfile);
   const evidence = getCompanyEvidence(profile);
+  let stage: AnalysisStage = "profile_pending";
   let companyProfileRead = false;
   const alertDeadlineSets = new Set<string>();
   const checkedDeadlineSets = new Set<string>();
@@ -34,6 +36,7 @@ export async function analyzeLiveTender(tenderText: string, signal: AbortSignal,
     parameters: z.object({}).strict(),
     execute: async () => {
       companyProfileRead = true;
+      stage = "profile_read";
       return { profile, evidenceByDocumentId: evidence, unknownEvidence: UNKNOWN_COMPANY_EVIDENCE };
     },
     errorFunction: null,
@@ -46,9 +49,11 @@ export async function analyzeLiveTender(tenderText: string, signal: AbortSignal,
     execute: async ({ deadlines }) => {
       if (!companyProfileRead) throw new Error("Company profile must be read first");
       validateGroundedDeadlines(deadlines, tenderText);
+      const checks = compareDocumentDates(profile, deadlines);
       checkedDeadlineSets.add(deadlineIdentity(deadlines));
+      stage = "dates_checked";
       return {
-        checks: compareDocumentDates(profile, deadlines),
+        checks,
         limitation: "Expiry dates are interpreted as inclusive Asia/Almaty calendar days. All company records are unverified. Match a comparison to a requirement only when the tender explicitly requires validity at that deadline; do not infer such a condition for all documents or all deadlines.",
       };
     },
@@ -63,8 +68,10 @@ export async function analyzeLiveTender(tenderText: string, signal: AbortSignal,
       if (!companyProfileRead) throw new Error("Company profile must be read first");
       validateGroundedDeadlines(deadlines, tenderText);
       if (!checkedDeadlineSets.has(deadlineIdentity(deadlines))) throw new Error("Document dates must be checked for these deadlines before drafting alerts");
+      const alerts = createDraftAlerts(deadlines, locale);
       alertDeadlineSets.add(deadlineIdentity(deadlines));
-      return { alerts: createDraftAlerts(deadlines, locale) };
+      stage = "alerts_created";
+      return { alerts };
     },
     errorFunction: null,
   });
@@ -105,14 +112,19 @@ Set disclaimer exactly to: ${getDisclaimer(locale, profile.isDemo)}`,
     tracingDisabled: true,
     traceIncludeSensitiveData: false,
   });
-  const result = await runner.run(agent, JSON.stringify({ tenderText }), { maxTurns: 7, signal });
-  if (!companyProfileRead) throw new Error("Required company profile tool was not used");
-  const assessment = validateGroundedAssessment(result.finalOutput, tenderText, profile);
-  if (!checkedDeadlineSets.has(deadlineIdentity(assessment.deadlines))) throw new Error("Required date tool was not used for final deadlines");
-  if (!alertDeadlineSets.has(deadlineIdentity(assessment.deadlines))) throw new Error("Required alert tool was not used for final deadlines");
-  // Deterministic server output prevents the model from altering reminder dates
-  // or weakening the disclaimer, even if it returns well-formed JSON.
-  assessment.alerts = createDraftAlerts(assessment.deadlines, locale);
-  assessment.disclaimer = getDisclaimer(locale, profile.isDemo);
-  return AssessmentSchema.parse(assessment);
+  try {
+    const result = await runner.run(agent, JSON.stringify({ tenderText }), { maxTurns: 7, signal });
+    stage = "final_received";
+    if (!companyProfileRead) throw new Error("Required company profile tool was not used");
+    const assessment = validateGroundedAssessment(result.finalOutput, tenderText, profile);
+    if (!checkedDeadlineSets.has(deadlineIdentity(assessment.deadlines))) throw new Error("Required date tool was not used for final deadlines");
+    if (!alertDeadlineSets.has(deadlineIdentity(assessment.deadlines))) throw new Error("Required alert tool was not used for final deadlines");
+    // Deterministic server output prevents the model from altering reminder dates
+    // or weakening the disclaimer, even if it returns well-formed JSON.
+    assessment.alerts = createDraftAlerts(assessment.deadlines, locale);
+    assessment.disclaimer = getDisclaimer(locale, profile.isDemo);
+    return AssessmentSchema.parse(assessment);
+  } catch (cause) {
+    throw new AnalysisRunError(stage, cause);
+  }
 }

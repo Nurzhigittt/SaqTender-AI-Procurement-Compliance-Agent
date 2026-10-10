@@ -1,4 +1,5 @@
 import type { Locale } from "./i18n";
+import type { AnalysisStage } from "./analysis-diagnostics";
 
 const FAILURES = {
   ai_credit_balance_exhausted: {
@@ -103,6 +104,47 @@ function errorChain(cause: unknown): object[] {
     }
   }
   return found;
+}
+
+const ANALYSIS_STAGES = new Set<AnalysisStage>(["profile_pending", "profile_read", "dates_checked", "alerts_created", "final_received"]);
+const CHECK_REASONS = new Map([
+  ["Ungrounded deadline evidence", "deadline_quote_mismatch"],
+  ["Deadline date is not grounded in its evidence", "deadline_date_mismatch"],
+  ["Duplicate deadline", "duplicate_deadline"],
+  ["Ungrounded requirement evidence", "requirement_quote_mismatch"],
+  ["Ungrounded company evidence", "company_evidence_mismatch"],
+  ["Unsupported missing-document claim", "unsupported_missing_claim"],
+  ["Unsupported document-compliance claim", "unsupported_met_claim"],
+  ["Unsupported document risk", "unsupported_risk_claim"],
+  ["Company profile must be read first", "profile_tool_out_of_order"],
+  ["Document dates must be checked for these deadlines before drafting alerts", "calendar_tool_out_of_order"],
+  ["Required company profile tool was not used", "profile_tool_missing"],
+  ["Required date tool was not used for final deadlines", "final_calendar_mismatch"],
+  ["Required alert tool was not used for final deadlines", "final_alert_mismatch"],
+]);
+const SDK_REASONS = new Map([
+  ["MaxTurnsExceededError", "model_turn_limit"],
+  ["MaxTurnsExceeded", "model_turn_limit"],
+  ["ModelBehaviorError", "invalid_model_output_or_tool_input"],
+  ["UserError", "sdk_configuration_error"],
+  ["ZodError", "invalid_structured_data"],
+  ["ToolCallError", "tool_execution_failed"],
+]);
+
+/** Server diagnostics contain only allowlisted labels, never error text or payloads. */
+export function getAnalysisDiagnostics(cause: unknown): { stage: AnalysisStage | "unknown"; reason: string } {
+  const chain = errorChain(cause);
+  const stage = chain.map(value => dataProperty(value, "stage")).find(value => ANALYSIS_STAGES.has(value as AnalysisStage)) as AnalysisStage | undefined;
+  for (const value of chain) {
+    const message = dataProperty(value, "message");
+    if (typeof message === "string" && CHECK_REASONS.has(message)) return { stage: stage ?? "unknown", reason: CHECK_REASONS.get(message)! };
+  }
+  // Prefer the deepest known exception to an outer SDK tool wrapper.
+  for (const value of [...chain].reverse()) {
+    const name = dataProperty(value, "name") ?? className(value);
+    if (typeof name === "string" && SDK_REASONS.has(name)) return { stage: stage ?? "unknown", reason: SDK_REASONS.get(name)! };
+  }
+  return { stage: stage ?? "unknown", reason: "unclassified" };
 }
 
 /** Return only allowlisted public categories and text, never provider error content. */

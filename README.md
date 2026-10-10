@@ -6,7 +6,7 @@ SaqTender AI helps a tender specialist compare the requirements in a tender with
 
 The initial audience is construction, design and engineering companies participating in procurement in Kazakhstan. This prototype demonstrates one complete review workflow using the fictional **OrdaBuild Demo LLP** and a fictional school-construction tender. It does not connect to procurement portals or determine official eligibility.
 
-**[Open the public demo](https://saq-tender-ai-procurement-complianc.vercel.app/)** — available in Russian and English, without a Vercel account. The public deployment currently runs with `DEMO_MODE=true`. On 25 September 2026, the sample returned HTTP 200 with four requirements, two deadlines and six draft reminders. This is deterministic demo output, not a verified response from a live AI model.
+**[Open the public MVP](https://saq-tender-ai-procurement-complianc.vercel.app/)** — available in Russian and English, without a Vercel account. The interface identifies the configured analysis mode. Demo Mode uses deterministic results; Live AI calls the server-side model. See Verification below for the latest confirmed result.
 
 ## What the demo does
 
@@ -86,10 +86,10 @@ npm test
 ## Verification
 
 - `npm install` and the optimized production build complete successfully.
-- `npm test`: 63 tests pass, covering PDF/TXT extraction and import limits, profile input and evidence, calendar comparisons, localization, error handling, HTML export, the benchmark grader and the real Agents SDK with intercepted offline provider transport. These are technical regression checks, not a measured accuracy score on real tenders.
+- `npm test`: 69 tests pass, covering PDF/TXT extraction and import limits, profile input and evidence, calendar comparisons, localization, error handling, HTML export, the benchmark grader and the real Agents SDK with intercepted offline provider transport. Deadline display titles may change between tools and final output, while timestamps and exact source quotes must match. These are technical regression checks, not a measured accuracy score on real tenders.
 - Browser checks cover sample analysis, all report tabs, expanded evidence, edited-text behavior, validation errors, mobile widths (320px and 390px), and 200% zoom.
 - The public deployment was rechecked on 25 September 2026 in Demo Mode: the sample API request returned HTTP 200 with four requirements, two deadlines and six draft reminders. Earlier production browser checks covered public access, report tabs, source evidence and a 390px mobile viewport.
-- A real OpenAI API analysis is **not yet verified**. On 9 October 2026, a production live request returned HTTP 502 with `ai_authentication_failed`. The configured OpenAI credentials were rejected. Demo Mode was restored and its API returned HTTP 200 with four requirements, two deadlines and six draft reminders. Offline SDK tests do not replace a successful live check.
+- A real OpenAI API analysis is **not yet verified**. On 10 October 2026, after the server configuration was updated, `/api/config` reported Live AI but the sample analysis returned HTTP 502 with `analysis_unverified`. A configured live mode does not establish a successful model result. Offline SDK tests do not replace a successful live check.
 
 The [20-case synthetic benchmark](evals/README.md) has separate dataset-validation, demo-baseline and paid live-model commands. The demo passed 5/20 cases; no live-model score has been measured. Run `npm run eval:check` without credentials or `npm run eval:live -- --limit 3` after configuring a valid server key. The benchmark is not expert-approved and does not establish real-world accuracy.
 
@@ -112,6 +112,8 @@ The sample tender is the recommended presentation path. Its fixed deadlines are 
 For **Live AI** mode, set a valid `OPENAI_API_KEY`, select an available model if needed, leave `DEMO_MODE=false`, and restart the server or redeploy. Run the sample and confirm the live-mode label, evidence, structured result and draft alerts. A model or timeout failure returns a retryable error; it should never be represented as a successful live analysis.
 
 Live execution must be verified with an available API account before describing it as tested in a submission or demonstration. Provider failures return localized messages for unavailable credits or quota, temporary rate limits, credentials, and model access. Raw provider errors, keys, and submitted tender text are not exposed in these messages.
+
+Failed live runs log only allowlisted error, stage and reason labels on the server. These diagnostics identify failed checks without logging tender text, company records, credentials, model output or raw exceptions.
 
 ## Deploy to Vercel
 

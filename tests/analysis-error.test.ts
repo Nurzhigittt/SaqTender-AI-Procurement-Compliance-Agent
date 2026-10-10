@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { APIConnectionError, APIConnectionTimeoutError, APIError } from "openai";
-import { getAnalysisFailure } from "../lib/analysis-error";
+import { getAnalysisDiagnostics, getAnalysisFailure } from "../lib/analysis-error";
+import { AnalysisRunError } from "../lib/analysis-diagnostics";
 
 const SECRET = "sk-secret-never-show-this";
 const TENDER = "PRIVATE_TENDER_PAYLOAD_849302";
@@ -107,4 +108,36 @@ test("error inspection does not invoke getters or throw on inaccessible metadata
   assert.equal(calls, 0);
   const inaccessible = new Proxy({}, { getOwnPropertyDescriptor() { throw new Error(SECRET); }, getPrototypeOf() { throw new Error(SECRET); } });
   assert.equal(getAnalysisFailure(inaccessible, "ru").code, "analysis_unverified");
+});
+
+test("diagnostics identify an exact failed check and stage through nested SDK errors", () => {
+  const error = new AnalysisRunError("dates_checked", { error: new Error("Document dates must be checked for these deadlines before drafting alerts") });
+  assert.deepEqual(getAnalysisDiagnostics(error), { stage: "dates_checked", reason: "calendar_tool_out_of_order" });
+  const wrappedProvider = new AnalysisRunError("profile_pending", providerError(401, "invalid_api_key"));
+  assert.equal(getAnalysisFailure(wrappedProvider, "ru").code, "ai_authentication_failed");
+});
+
+test("server diagnostics never log arbitrary errors, schema issues, credentials or tender content", () => {
+  const cases = [
+    new AnalysisRunError("final_received", new Error(`${SECRET} ${TENDER}`)),
+    new AnalysisRunError("profile_pending", providerError(400, SECRET)),
+    { name: "ZodError", message: TENDER, issues: [{ input: SECRET }] },
+    { stage: TENDER, name: SECRET, message: `Ungrounded company evidence ${SECRET}` },
+  ];
+  for (const error of cases) {
+    const result = getAnalysisDiagnostics(error);
+    assert.deepEqual(Object.keys(result).sort(), ["reason", "stage"]);
+    assert.equal(JSON.stringify(result).includes(SECRET), false);
+    assert.equal(JSON.stringify(result).includes(TENDER), false);
+  }
+  assert.equal(getAnalysisDiagnostics(cases[2]).reason, "invalid_structured_data");
+});
+
+test("diagnostic inspection is bounded and does not invoke hostile getters", () => {
+  let reads = 0;
+  const hostile = Object.defineProperties({}, Object.fromEntries(["stage", "name", "message", "cause", "originalError", "error"].map(key => [key, { get() { reads++; throw new Error(SECRET); } }])));
+  assert.deepEqual(getAnalysisDiagnostics(hostile), { stage: "unknown", reason: "unclassified" });
+  assert.equal(reads, 0);
+  const cyclic: { cause?: unknown } = {}; cyclic.cause = cyclic;
+  assert.equal(getAnalysisDiagnostics(cyclic).reason, "unclassified");
 });

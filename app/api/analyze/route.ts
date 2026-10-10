@@ -3,7 +3,7 @@ import { analyzeLiveTender } from "@/lib/agent";
 import { analyzeDemoTender } from "@/lib/mock-analysis";
 import { resolveCompanyProfile } from "@/lib/demo-data";
 import { getAnalysisMode } from "@/lib/server-config";
-import { getAnalysisFailure } from "@/lib/analysis-error";
+import { getAnalysisDiagnostics, getAnalysisFailure } from "@/lib/analysis-error";
 import type { Locale } from "@/lib/i18n";
 import { AnalyzeRequestSchema, type AnalyzeResponse } from "@/lib/types";
 
@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
   } catch (cause) {
     if (timedOut || controller.signal.aborted) return error(tr("The analysis timed out or was interrupted. Please retry.", "Анализ прерван или превысил время ожидания. Повторите попытку."), 504);
     const failure = getAnalysisFailure(cause, locale);
+    console.warn("SaqTender analysis failed", { code: failure.code, ...getAnalysisDiagnostics(cause) });
     return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status, headers: RESPONSE_HEADERS });
   } finally {
     clearTimeout(timeout);

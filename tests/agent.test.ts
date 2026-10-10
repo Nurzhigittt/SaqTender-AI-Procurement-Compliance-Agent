@@ -10,11 +10,14 @@ const fixture = path.join(process.cwd(), "tests/fixtures/agent-transport.ts");
 
 const scenarios = [
   ["happy", "live SDK forces the profile tool, runs alert creation, and returns grounded structured output"],
+  ["rephrased-deadline-titles", "live SDK accepts rephrased deadline titles while preserving exact dates and evidence across tools"],
   ["missing-profile", "live SDK output is rejected when the required company-profile tool was skipped"],
   ["missing-date-check", "live SDK rejects alerts when the calendar check was skipped"],
   ["wrong-date-input", "live SDK rejects calendars checked for a different deadline set"],
   ["wrong-evidence", "live SDK output is rejected when a requirement cites fabricated evidence"],
   ["wrong-alert-input", "live SDK output is rejected when the alert tool received different deadlines"],
+  ["wrong-deadline-date", "live SDK rejects a tool deadline whose time differs from its quoted source"],
+  ["wrong-deadline-evidence", "live SDK rejects a tool deadline with fabricated source evidence"],
   ["normalize-final", "live SDK output cannot override server-generated reminder dates or disclaimer"],
   ["abort", "live SDK transport aborts promptly when the run signal times out"],
   ["provider-error", "live SDK provider errors do not log a secret or tender text"],

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { analyzeLiveTender } from "../../lib/agent";
 import { DEMO_COMPANY, getDisclaimer, resolveCompanyProfile, SAMPLE_TENDER } from "../../lib/demo-data";
 import { analyzeDemoTender } from "../../lib/mock-analysis";
+import { createDraftAlerts } from "../../lib/alerts";
 import type { Assessment } from "../../lib/types";
 
 async function main() {
@@ -21,6 +22,9 @@ async function main() {
   console.warn = (...items: unknown[]) => capturedLogs.push(items.map(String).join(" "));
 
   if (scenario === "wrong-evidence") finalOutput.requirements[0].tenderEvidence = "This evidence does not occur in the supplied tender.";
+  if (scenario === "rephrased-deadline-titles") {
+    finalOutput.deadlines.forEach(item => { item.title = `Final deadline: ${item.title}`; });
+  }
   if (scenario === "normalize-final") {
     finalOutput.alerts[0].scheduledAt = "2040-01-01T00:00:00.000Z";
     finalOutput.disclaimer = "A model-authored disclaimer must be replaced.";
@@ -65,13 +69,24 @@ async function main() {
       } }), { status: quota ? 429 : 401, headers: { "Content-Type": "application/json", "x-should-retry": "false" } });
     }
 
+    const toolDeadlines = structuredClone(canonical.deadlines);
+    if (scenario === "rephrased-deadline-titles") {
+      toolDeadlines.forEach(item => { item.title = `${requests.length === 2 ? "Calendar check" : "Draft reminder"}: ${item.title}`; });
+    }
+    if (scenario === "wrong-deadline-date") {
+      toolDeadlines[0].date = new Date(Date.parse(toolDeadlines[0].date) + 3600000).toISOString();
+    }
+    if (scenario === "wrong-deadline-evidence") {
+      toolDeadlines[0].tenderEvidence = "A deadline quote that does not occur in this tender.";
+    }
+
     const output = scenario === "missing-profile" ? finalMessage()
       : requests.length === 1 ? functionCall("getCompanyProfile", {}, 1)
         : requests.length === 2 ? functionCall(scenario === "missing-date-check" ? "createAlerts" : "checkDocumentDates", {
-          deadlines: scenario === "wrong-date-input" ? [] : canonical.deadlines,
+          deadlines: scenario === "wrong-date-input" ? [] : toolDeadlines,
         }, 2)
         : requests.length === 3 ? functionCall("createAlerts", {
-          deadlines: scenario === "wrong-alert-input" ? [] : canonical.deadlines,
+          deadlines: scenario === "wrong-alert-input" ? [] : toolDeadlines,
         }, 3)
           : finalMessage();
 
@@ -101,7 +116,7 @@ async function main() {
       assert.equal(JSON.stringify(body).includes("FICTIONAL DEMO TENDER"), false);
       assert.equal("assessment" in body, false);
       assert.equal(response.headers.get("cache-control"), "no-store");
-    } else if (["missing-profile", "missing-date-check", "wrong-date-input", "wrong-evidence", "wrong-alert-input", "abort", "provider-error", "custom-profile-old-evidence"].includes(scenario)) {
+    } else if (["missing-profile", "missing-date-check", "wrong-date-input", "wrong-evidence", "wrong-alert-input", "wrong-deadline-date", "wrong-deadline-evidence", "abort", "provider-error", "custom-profile-old-evidence"].includes(scenario)) {
       await assert.rejects(analyzeLiveTender(SAMPLE_TENDER, controller.signal, locale, profile));
       if (scenario === "abort") assert.equal(controller.signal.aborted, true);
     } else {
@@ -114,7 +129,8 @@ async function main() {
         assessment = (await response.json()).assessment;
       } else assessment = await analyzeLiveTender(SAMPLE_TENDER, controller.signal, locale, profile);
       assert.equal(requests.length, 4, "Expected profile tool, date tool, alert tool, and final structured response");
-      assert.deepEqual(assessment.alerts, canonical.alerts);
+      assert.deepEqual(assessment.alerts, createDraftAlerts(finalOutput.deadlines, locale));
+      if (scenario === "rephrased-deadline-titles") assert.deepEqual(assessment.deadlines, finalOutput.deadlines);
       assert.equal(assessment.disclaimer, getDisclaimer(locale, profile.isDemo));
       assert.equal(assessment.officialEligibilityVerified, false);
       if (scenario === "russian") {
