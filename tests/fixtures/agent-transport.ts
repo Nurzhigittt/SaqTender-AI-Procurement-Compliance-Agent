@@ -73,17 +73,24 @@ async function main() {
     if (scenario === "rephrased-deadline-titles") {
       toolDeadlines.forEach(item => { item.title = `${requests.length === 2 ? "Calendar check" : "Draft reminder"}: ${item.title}`; });
     }
-    if (scenario === "wrong-deadline-date") {
+    if (scenario === "wrong-deadline-date" && requests.length === 3) {
       toolDeadlines[0].date = new Date(Date.parse(toolDeadlines[0].date) + 3600000).toISOString();
     }
     if (scenario === "wrong-deadline-evidence") {
       toolDeadlines[0].tenderEvidence = "A deadline quote that does not occur in this tender.";
     }
+    if (scenario === "ambiguous-date-quote") {
+      toolDeadlines[0].tenderEvidence = "Application deadline: 2026-09-29 10:00 Asia/Almaty.\nBid security deadline: 2026-09-26 18:00 Asia/Almaty.";
+    }
+    if (scenario === "missing-timezone-quote") {
+      toolDeadlines[0].tenderEvidence = "Application deadline: 2026-09-29 10:00";
+    }
 
     const output = scenario === "missing-profile" ? finalMessage()
       : requests.length === 1 ? functionCall("getCompanyProfile", {}, 1)
         : requests.length === 2 ? functionCall(scenario === "missing-date-check" ? "createAlerts" : "checkDocumentDates", {
-          deadlines: scenario === "wrong-date-input" ? [] : toolDeadlines,
+          deadlines: scenario === "wrong-date-input" ? [] : scenario === "missing-date-check" ? toolDeadlines
+            : toolDeadlines.map(({ title, tenderEvidence }) => ({ title, tenderEvidence })),
         }, 2)
         : requests.length === 3 ? functionCall("createAlerts", {
           deadlines: scenario === "wrong-alert-input" ? [] : toolDeadlines,
@@ -116,7 +123,7 @@ async function main() {
       assert.equal(JSON.stringify(body).includes("FICTIONAL DEMO TENDER"), false);
       assert.equal("assessment" in body, false);
       assert.equal(response.headers.get("cache-control"), "no-store");
-    } else if (["missing-profile", "missing-date-check", "wrong-date-input", "wrong-evidence", "wrong-alert-input", "wrong-deadline-date", "wrong-deadline-evidence", "abort", "provider-error", "custom-profile-old-evidence"].includes(scenario)) {
+    } else if (["missing-profile", "missing-date-check", "wrong-date-input", "wrong-evidence", "wrong-alert-input", "wrong-deadline-date", "wrong-deadline-evidence", "ambiguous-date-quote", "missing-timezone-quote", "abort", "provider-error", "custom-profile-old-evidence"].includes(scenario)) {
       await assert.rejects(analyzeLiveTender(SAMPLE_TENDER, controller.signal, locale, profile));
       if (scenario === "abort") assert.equal(controller.signal.aborted, true);
     } else {
@@ -133,6 +140,14 @@ async function main() {
       if (scenario === "rephrased-deadline-titles") assert.deepEqual(assessment.deadlines, finalOutput.deadlines);
       assert.equal(assessment.disclaimer, getDisclaimer(locale, profile.isDemo));
       assert.equal(assessment.officialEligibilityVerified, false);
+      const calendarOutput = (requests[2].input as Array<{ type?: string; call_id?: string; output?: unknown }>)
+        .find(item => item.type === "function_call_output" && item.call_id === "call_2");
+      assert.equal(typeof calendarOutput?.output, "string", "The model must receive the calendar tool's canonical deadline data");
+      const resolved = JSON.parse(calendarOutput!.output as string).deadlines;
+      assert.deepEqual(resolved.map((item: { date: string }) => item.date).sort(), ["2026-09-26T13:00:00.000Z", "2026-09-29T05:00:00.000Z"]);
+      assert.deepEqual(assessment.deadlines.map(item => ({ date: item.date, tenderEvidence: item.tenderEvidence })),
+        resolved.map((item: { date: string; tenderEvidence: string }) => ({ date: item.date, tenderEvidence: item.tenderEvidence })),
+        "Final deadlines must preserve the exact server-resolved timestamps and source quotes");
       if (scenario === "russian") {
         assert.match(assessment.summary, /[А-Яа-яЁё]/u);
         assert.match(assessment.disclaimer, /[А-Яа-яЁё]/u);

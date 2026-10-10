@@ -36,6 +36,18 @@ export function explicitDatesInEvidence(text: string): string[] {
   return dates;
 }
 
+/** Resolve timezones from source evidence, without asking the model to calculate offsets. */
+export function resolveGroundedDeadlines(candidates: Pick<Deadline, "title" | "tenderEvidence">[], tenderText: string): Deadline[] {
+  const deadlines = candidates.map(candidate => {
+    if (!tenderText.includes(candidate.tenderEvidence)) throw new Error("Ungrounded deadline evidence");
+    const dates = [...new Set(explicitDatesInEvidence(candidate.tenderEvidence))];
+    if (dates.length !== 1) throw new Error("Deadline evidence must contain exactly one explicit instant");
+    return { title: candidate.title, tenderEvidence: candidate.tenderEvidence, date: dates[0] };
+  });
+  validateGroundedDeadlines(deadlines, tenderText);
+  return deadlines;
+}
+
 export function validateGroundedDeadlines(deadlines: Deadline[], tenderText: string): void {
   const seen = new Set<string>();
   for (const deadline of deadlines) {

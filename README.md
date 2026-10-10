@@ -47,7 +47,7 @@ Live mode uses the official OpenAI Agents SDK on the server. One specialist, **S
 Its tools are:
 
 - `getCompanyProfile`: returns the submitted company profile and canonical evidence strings (or the fictional sample when no profile is supplied).
-- `checkDocumentDates`: compares recorded expiry dates to evidenced deadlines using Asia/Almaty calendar days. This deterministic tool cannot verify document contents or legal sufficiency.
+- `checkDocumentDates`: takes exact deadline quotes, resolves their timestamps on the server, and compares recorded expiry dates using Asia/Almaty calendar days. A quote must contain exactly one explicit instant; missing timezones or conflicting times are rejected. The model copies the returned timestamps rather than calculating timezone offsets. This deterministic tool cannot verify document contents or legal sufficiency.
 - `createAlerts`: produces draft alert records from extracted deadlines.
 
 The server requires profile reading, calendar comparison and reminder creation for the final deadline set, in that order. Skipping a tool or changing the final dates without rerunning the dependent tools rejects the run. Company fields and tender text are untrusted data, never developer instructions.
@@ -86,7 +86,7 @@ npm test
 ## Verification
 
 - `npm install` and the optimized production build complete successfully.
-- `npm test`: 69 tests pass, covering PDF/TXT extraction and import limits, profile input and evidence, calendar comparisons, localization, error handling, HTML export, the benchmark grader and the real Agents SDK with intercepted offline provider transport. Deadline display titles may change between tools and final output, while timestamps and exact source quotes must match. These are technical regression checks, not a measured accuracy score on real tenders.
+- `npm test`: 74 tests pass, covering PDF/TXT extraction and import limits, profile input and evidence, calendar comparisons, localization, error handling, HTML export, the benchmark grader and the real Agents SDK with intercepted offline provider transport. Deadline display titles may change between tools and final output, while server-resolved timestamps and exact source quotes must match. These are technical regression checks, not a measured accuracy score on real tenders.
 - Browser checks cover sample analysis, all report tabs, expanded evidence, edited-text behavior, validation errors, mobile widths (320px and 390px), and 200% zoom.
 - The public deployment was rechecked on 25 September 2026 in Demo Mode: the sample API request returned HTTP 200 with four requirements, two deadlines and six draft reminders. Earlier production browser checks covered public access, report tabs, source evidence and a 390px mobile viewport.
 - A real OpenAI API analysis is **not yet verified**. On 10 October 2026, after the server configuration was updated, `/api/config` reported Live AI but the sample analysis returned HTTP 502 with `analysis_unverified`. A configured live mode does not establish a successful model result. Offline SDK tests do not replace a successful live check.

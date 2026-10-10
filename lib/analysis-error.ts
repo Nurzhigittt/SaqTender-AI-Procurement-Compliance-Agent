@@ -110,6 +110,7 @@ const ANALYSIS_STAGES = new Set<AnalysisStage>(["profile_pending", "profile_read
 const CHECK_REASONS = new Map([
   ["Ungrounded deadline evidence", "deadline_quote_mismatch"],
   ["Deadline date is not grounded in its evidence", "deadline_date_mismatch"],
+  ["Deadline evidence must contain exactly one explicit instant", "deadline_source_ambiguous"],
   ["Duplicate deadline", "duplicate_deadline"],
   ["Ungrounded requirement evidence", "requirement_quote_mismatch"],
   ["Ungrounded company evidence", "company_evidence_mismatch"],
