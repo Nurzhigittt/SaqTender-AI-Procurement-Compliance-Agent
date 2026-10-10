@@ -98,4 +98,16 @@ After adding separate record-presence and validity guidance to the calendar tool
 
 The omission motivated an explicit complete-checklist instruction and schema description: a document-validity clause remains a requirement even when a document is present or covers the closing day. The run above remains recorded as two passes and one failure; it must not be replaced by later results.
 
+### Published code `95628eb`, 21:31 Asia/Almaty
+
+After the checklist clarification, a new bounded run tested the same three cases once each, without client retries or grader changes. **All three passed** and their complete answers were manually reviewed:
+
+- `expired-opinion-ru`: one exact requirement, present expert opinion with expiry before closing, `at_risk` status and medium risk. No missing-document claim.
+- `renewed-opinion-ru`: the requirement was retained with `unknown` status. The explanation acknowledged coverage of the closing date while requiring verification of authenticity and sufficiency; no early-expiry risk was invented.
+- `same-day-expiry-en`: the previously omitted requirement was retained with `unknown` status and inclusive coverage of the closing day. No false expiry or missing-document claim.
+
+Each result contained the correct source quote, company evidence, one canonical deadline, one review action and three draft reminders. A separate browser request using the fictional default profile also returned the expired-document finding as `at_risk`; the expanded evidence and downloaded HTML report were checked. Across the two code versions there were six remote analysis requests and one browser request. The first run's omission is preserved above.
+
+This is a targeted development result, **not a measured accuracy rate on real tenders**. The final version has one attempt per selected case; repeatability and the other 17 synthetic cases were not evaluated on it. Status guidance and complete-checklist instructions still depend on model interpretation and are not new completeness or semantic guarantees. The unchanged validator continues rejecting present records incorrectly called missing. Next validation should use unseen, permissioned examples reviewed by tender specialists.
+
 `npm test` checks the calendar tool, validation boundaries, SDK orchestration with intercepted transport and the grader itself. Passing those tests demonstrates technical behavior, not the language model's extraction quality.
