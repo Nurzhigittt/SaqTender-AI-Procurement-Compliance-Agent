@@ -10,6 +10,7 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "eval:check": "node --import tsx evals/run.ts --check",
     "eval:demo": "node --import tsx evals/run.ts --demo",
+    "eval:remote": "node --import tsx evals/run.ts --remote",
     "eval:live": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx evals/run.ts --live"
   },
   "engines": {

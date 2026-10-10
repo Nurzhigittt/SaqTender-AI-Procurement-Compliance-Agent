@@ -52,6 +52,8 @@ Its tools are:
 
 The server requires profile reading, calendar comparison and reminder creation for the final deadline set, in that order. Skipping a tool or changing the final dates without rerunning the dependent tools rejects the run. Company fields and tender text are untrusted data, never developer instructions.
 
+If a calendar quote lacks one unambiguous explicit timestamp, the tool can return one bounded correction message to the agent. The agent must submit a corrected list, keep unresolved dates out of reminders, and request manual clarification. The failed call never counts as a completed calendar check. Invented quotes, changed timestamps and repeated invalid calendar input still reject the run.
+
 The profile editor marks user records as unverified. Changing the profile makes the previous report stale and disables export until another check succeeds. The report retains the company snapshot used for that check. An available document does not automatically mean a requirement is met.
 
 Zod validates incoming requests and structured assessment output. Every assessment sets `officialEligibilityVerified` to `false` and includes a decision-support disclaimer. Error responses are safe user-facing messages rather than internal exception details. The API key is used only on the server.
@@ -86,12 +88,12 @@ npm test
 ## Verification
 
 - `npm install` and the optimized production build complete successfully.
-- `npm test`: 74 tests pass, covering PDF/TXT extraction and import limits, profile input and evidence, calendar comparisons, localization, error handling, HTML export, the benchmark grader and the real Agents SDK with intercepted offline provider transport. Deadline display titles may change between tools and final output, while server-resolved timestamps and exact source quotes must match. These are technical regression checks, not a measured accuracy score on real tenders.
+- `npm test`: 85 tests pass, covering PDF/TXT extraction and import limits, profile input and evidence, calendar comparisons, localization, error handling, HTML export, the benchmark grader and the real Agents SDK with intercepted offline provider transport. Deadline display titles may change between tools and final output, while server-resolved timestamps and exact source quotes must match. These are technical regression checks, not a measured accuracy score on real tenders.
 - Browser checks cover sample analysis, all report tabs, expanded evidence, edited-text behavior, validation errors, mobile widths (320px and 390px), and 200% zoom.
 - The public deployment was rechecked on 25 September 2026 in Demo Mode: the sample API request returned HTTP 200 with four requirements, two deadlines and six draft reminders. Earlier production browser checks covered public access, report tabs, source evidence and a 390px mobile viewport.
 - **One real Live AI analysis was verified on 10 October 2026 at 17:38 Asia/Almaty**, on deployed code `773595c`. The public site's Russian sample produced four grounded requirements, the missing experience-document finding, two correct deadlines (26 September at 18:00 and 29 September at 10:00, Asia/Almaty), and six deterministic draft reminders. Browser checks confirmed the AI-result label, exact source quotes and a downloaded HTML report. This validates the end-to-end sample workflow, not general accuracy, repeatability or official eligibility. No live benchmark score has been measured.
 
-The [20-case synthetic benchmark](evals/README.md) has separate dataset-validation, demo-baseline and paid live-model commands. The demo passed 5/20 cases; no live-model score has been measured. Run `npm run eval:check` without credentials or `npm run eval:live -- --limit 3` after configuring a valid server key. The benchmark is not expert-approved and does not establish real-world accuracy.
+The [20-case synthetic benchmark](evals/README.md) has separate dataset-validation, demo-baseline and paid live-model commands. The demo passed 5/20 cases. Run `npm run eval:check` without credentials, `npm run eval:live -- --limit 3` using a local server key, or `npm run eval:remote -- https://your-deployment.example --limit 3` to use the deployment's existing key. Remote runs require explicit selection of at most three fictional cases, reject demo output, stop on execution failure, and retain structured results for manual review. The benchmark is not expert-approved and does not establish real-world accuracy.
 
 The build uses Next.js with webpack for compatibility with restricted local environments.
 

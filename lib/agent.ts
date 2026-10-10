@@ -27,6 +27,7 @@ export async function analyzeLiveTender(tenderText: string, signal: AbortSignal,
   const evidence = getCompanyEvidence(profile);
   let stage: AnalysisStage = "profile_pending";
   let companyProfileRead = false;
+  let calendarValidationRecoveries = 0;
   const alertDeadlineSets = new Set<string>();
   const checkedDeadlineSets = new Set<string>();
 
@@ -58,7 +59,16 @@ export async function analyzeLiveTender(tenderText: string, signal: AbortSignal,
         limitation: "Expiry dates are interpreted as inclusive Asia/Almaty calendar days. All company records are unverified. Match a comparison to a requirement only when the tender explicitly requires validity at that deadline; do not infer such a condition for all documents or all deadlines.",
       };
     },
-    errorFunction: null,
+    errorFunction: (_context, cause) => {
+      if (!(cause instanceof Error) || cause.message !== "Deadline evidence must contain exactly one explicit instant" || calendarValidationRecoveries >= 1) throw cause;
+      calendarValidationRecoveries += 1;
+      // Static feedback permits one correction without treating an invalid check as successful.
+      return JSON.stringify({
+        ok: false,
+        code: "deadline_source_ambiguous",
+        instruction: "Calendar validation failed. If a quote lacks a time or timezone, or contains an impossible date, omit that deadline and add a manual-verification action; never invent missing values. If a quote contains multiple explicit dates, use separate exact clauses only when their deadline meaning is clear; otherwise request manual verification. Call checkDocumentDates again with the complete valid quote list, or an empty list if none are valid. Only after a successful calendar result may you call createAlerts and return a final assessment. One correction is allowed.",
+      });
+    },
   });
 
   const createAlerts = tool({
@@ -90,7 +100,7 @@ Required workflow:
 3. Compare with the profile. Each requirement must contain an EXACT, nonempty, case-sensitive contiguous quote copied from the tender as tenderEvidence. Use enough context to avoid misleading fragments. For companyEvidence, copy exactly ONE matching value from evidenceByDocumentId, or copy unknownEvidence verbatim when no document establishes it. Never invent company evidence.
 4. Use status unknown whenever required scope, category, document contents, recency, authenticity, time period, or supporting evidence is absent. An active document is only a recorded profile fact, not proof of legal sufficiency. Use missing only for a document explicitly marked Missing in the profile. Use met only for a requirement directly satisfied by the recorded facts. A document expiring AFTER submission closes is not a failed submission-period requirement; describe renewal as a recommendation.
 5. Identify a deadline only when its tenderEvidence contains an explicit YYYY-MM-DD calendar date, HH:mm time, and either Asia/Almaty, Z, or a numeric +/-HH:mm timezone. Do not invent a time or timezone, and do not calculate timezone offsets yourself. Submission opening is not a deadline. When date/time/timezone is absent, add a manual-verification action instead. Each deadline evidence must be an exact contiguous quote from the tender containing exactly one distinct explicit date-time.
-6. Call checkDocumentDates with the complete list of deadline titles and source quotes only, even when empty. The tool resolves canonical ISO timestamps from these quotes and returns deadlines plus calendar comparisons. Copy its returned date values exactly into createAlerts and the final assessment; never recompute or replace these timestamps. Use its calendar comparisons instead of mental date arithmetic. A covers_deadline_day result does not prove scope, authenticity or overall sufficiency. An expires_before result is relevant only if the quoted requirement actually demands validity at that deadline. Conflicting tender clauses without an explicit superseding amendment require manual review, never a guessed interpretation.
+6. Call checkDocumentDates with the complete list of deadline titles and source quotes only, even when empty. The tool resolves canonical ISO timestamps from these quotes and returns deadlines plus calendar comparisons. Copy its returned date values exactly into createAlerts and the final assessment; never recompute or replace these timestamps. If the tool returns validation feedback instead of deadlines, follow that feedback and call checkDocumentDates again once; the failed call does not count as a completed calendar check. Omit unresolved deadlines and add a manual-verification action rather than guessing missing fields. Use its calendar comparisons instead of mental date arithmetic. A covers_deadline_day result does not prove scope, authenticity or overall sufficiency. An expires_before result is relevant only if the quoted requirement actually demands validity at that deadline. Conflicting tender clauses without an explicit superseding amendment require manual review, never a guessed interpretation.
 7. Call createAlerts with the complete deadlines returned by checkDocumentDates. Copy its draft alerts; never claim they are sent, stored, or scheduled. Re-call both checkDocumentDates and createAlerts if the final deadline list changes.
 8. Return the structured assessment. Distinguish detected facts in requirements/deadlines from recommendations in actions. Avoid assertions such as eligible, legally compliant, officially verified, approved, or guaranteed rejection. Use "Manual verification required" where uncertainty remains. A mandatory missing document means high risk; unresolved evidence cannot mean low risk. With insufficient tender information, use overallRisk unknown.
 
