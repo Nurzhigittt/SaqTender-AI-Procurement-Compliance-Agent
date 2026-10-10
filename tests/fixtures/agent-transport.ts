@@ -63,6 +63,14 @@ async function main() {
     if (requests.length === 1) {
       assert.deepEqual(requestBody.tool_choice, { type: "function", name: "getCompanyProfile" });
       if (scenario === "russian") assert.match(String(requestBody.instructions), /Return concise plain Russian/);
+    } else {
+      const retryingCalendar = calendarFeedbackScenario || ["ambiguous-date-quote", "missing-timezone-quote"].includes(scenario);
+      const expectedChoice = requests.length === 2 ? "checkDocumentDates"
+        : requests.length === 3 ? retryingCalendar ? "checkDocumentDates" : "createAlerts"
+          : requests.length === 4 && recovery ? "createAlerts"
+            : requests.length === 5 && scenario === "recheck-after-alert" ? "createAlerts" : "auto";
+      assert.deepEqual(requestBody.tool_choice, expectedChoice === "auto" ? "auto" : { type: "function", name: expectedChoice },
+        "Every provider request must enforce the next required tool, including calendar recovery or recalculation");
     }
 
     if (scenario === "abort") {
@@ -112,6 +120,8 @@ async function main() {
           deadlines: scenario === "calendar-feedback-repeated" ? calendarCandidates : [],
         }, 3)
         : recovery && requests.length === 4 ? functionCall("createAlerts", { deadlines: [] }, 4)
+        : scenario === "recheck-after-alert" && requests.length === 4 ? functionCall("checkDocumentDates", { deadlines: calendarCandidates }, 4)
+        : scenario === "recheck-after-alert" && requests.length === 5 ? functionCall("createAlerts", { deadlines: toolDeadlines }, 5)
         : requests.length === 3 ? functionCall("createAlerts", {
           deadlines: scenario === "wrong-alert-input" ? [] : toolDeadlines,
         }, 3)
@@ -156,7 +166,7 @@ async function main() {
         assert.equal(response.status, 200);
         assessment = (await response.json()).assessment;
       } else assessment = await analyzeLiveTender(tenderText, controller.signal, locale, profile);
-      assert.equal(requests.length, recovery ? 5 : 4, "Expected required tools and final response, with at most one calendar correction");
+      assert.equal(requests.length, recovery ? 5 : scenario === "recheck-after-alert" ? 6 : 4, "Expected required tools and final response, with a bounded correction or recalculation");
       assert.deepEqual(assessment.alerts, createDraftAlerts(finalOutput.deadlines, locale));
       if (scenario === "rephrased-deadline-titles") assert.deepEqual(assessment.deadlines, finalOutput.deadlines);
       assert.equal(assessment.disclaimer, getDisclaimer(locale, profile.isDemo));

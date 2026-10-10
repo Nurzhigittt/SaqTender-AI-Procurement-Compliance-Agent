@@ -23,6 +23,7 @@ const scenarios = [
   ["calendar-feedback-recovery", "live SDK permits one corrected calendar check and returns manual verification without invented dates"],
   ["calendar-feedback-repeated", "live SDK stops after a repeated ambiguous calendar input"],
   ["calendar-feedback-bypass", "live SDK rejects alerts after feedback when the corrected calendar check was skipped"],
+  ["recheck-after-alert", "live SDK forces alert creation again after a later calendar recalculation"],
   ["normalize-final", "live SDK output cannot override server-generated reminder dates or disclaimer"],
   ["abort", "live SDK transport aborts promptly when the run signal times out"],
   ["provider-error", "live SDK provider errors do not log a secret or tender text"],

@@ -38,6 +38,7 @@ export async function analyzeLiveTender(tenderText: string, signal: AbortSignal,
     execute: async () => {
       companyProfileRead = true;
       stage = "profile_read";
+      agent.modelSettings.toolChoice = "checkDocumentDates";
       return { profile, evidenceByDocumentId: evidence, unknownEvidence: UNKNOWN_COMPANY_EVIDENCE };
     },
     errorFunction: null,
@@ -53,6 +54,7 @@ export async function analyzeLiveTender(tenderText: string, signal: AbortSignal,
       const checks = compareDocumentDates(profile, deadlines);
       checkedDeadlineSets.add(deadlineIdentity(deadlines));
       stage = "dates_checked";
+      agent.modelSettings.toolChoice = "createAlerts";
       return {
         deadlines,
         checks,
@@ -62,6 +64,7 @@ export async function analyzeLiveTender(tenderText: string, signal: AbortSignal,
     errorFunction: (_context, cause) => {
       if (!(cause instanceof Error) || cause.message !== "Deadline evidence must contain exactly one explicit instant" || calendarValidationRecoveries >= 1) throw cause;
       calendarValidationRecoveries += 1;
+      agent.modelSettings.toolChoice = "checkDocumentDates";
       // Static feedback permits one correction without treating an invalid check as successful.
       return JSON.stringify({
         ok: false,
@@ -82,6 +85,7 @@ export async function analyzeLiveTender(tenderText: string, signal: AbortSignal,
       const alerts = createDraftAlerts(deadlines, locale);
       alertDeadlineSets.add(deadlineIdentity(deadlines));
       stage = "alerts_created";
+      agent.modelSettings.toolChoice = "auto";
       return { alerts };
     },
     errorFunction: null,
@@ -115,7 +119,7 @@ Set disclaimer exactly to: ${getDisclaimer(locale, profile.isDemo)}`,
       maxTokens: 6500,
       timeoutMs: 35000,
     },
-    resetToolChoice: true,
+    resetToolChoice: false,
   });
 
   const runner = new Runner({
