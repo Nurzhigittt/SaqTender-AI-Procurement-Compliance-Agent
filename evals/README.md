@@ -86,4 +86,16 @@ A separate single browser analysis used the fictional default company and the co
 
 This is **two passes out of three selected development cases**, not a real-world accuracy estimate. Repeatability, the full live benchmark and expert-reviewed unseen cases remain unmeasured. Exact quotes do not establish correct interpretation. The next quality priority is correctly distinguishing absent documents from present but expired documents while retaining strict validation; the expiry case remains unresolved.
 
+### Published code `31f4b35`, 21:28 Asia/Almaty
+
+After adding separate record-presence and validity guidance to the calendar tool, one three-case remote run completed without execution errors or client retries. The grader and authored expectations were unchanged.
+
+| Case | Automatic result | Manual review |
+| --- | --- | --- |
+| `expired-opinion-ru` | Pass | The record remained present; its expiry before submission was explained as `at_risk`, with medium risk, one grounded requirement, one deadline and three draft reminders. The previous unsupported missing-document claim was absent. |
+| `renewed-opinion-ru` | Pass | Retained the required expert opinion and its renewed date with no early-expiry claim. Returned `met`, which the original development expectation permits, rather than the tool's conservative `unknown` guidance. This shows guidance is not mechanically enforced. |
+| `same-day-expiry-en` | Fail | Returned the correct closing date and reminders but omitted the mandatory document requirement entirely. The report kept unknown overall risk; it was still incomplete. |
+
+The omission motivated an explicit complete-checklist instruction and schema description: a document-validity clause remains a requirement even when a document is present or covers the closing day. The run above remains recorded as two passes and one failure; it must not be replaced by later results.
+
 `npm test` checks the calendar tool, validation boundaries, SDK orchestration with intercepted transport and the grader itself. Passing those tests demonstrates technical behavior, not the language model's extraction quality.

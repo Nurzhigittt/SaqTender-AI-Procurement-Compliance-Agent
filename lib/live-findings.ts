@@ -15,7 +15,7 @@ export const LiveFindingsSchema = z.object({
   requirements: z.array(RequirementSchema.extend({
     clauseState: z.enum(["unambiguous", "conflicting", "conditional"]),
     conflictingEvidence: z.string().min(1).max(2000).nullable(),
-  }).strict()).max(60),
+  }).strict()).max(60).describe("Complete list of applicable document and qualification conditions, including met and unknown findings. A required document valid at a deadline is a requirement even when its recorded expiry covers that day. Do not return only missing or at-risk items."),
   deadlines: z.array(DeadlineSchema).max(30),
   unresolvedDeadlines: z.array(UnresolvedDeadlineSchema).max(30),
 }).strict();
