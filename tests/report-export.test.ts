@@ -61,7 +61,7 @@ test("all untrusted report text is escaped, with no executable source markup or 
     summary: hostile,
     overallRisk: "unknown",
     officialEligibilityVerified: false,
-    requirements: [{ title: hostile, status: "unknown", tenderEvidence: hostile, companyEvidence: hostile, explanation: hostile }],
+    requirements: [{ title: hostile, status: "unknown", tenderEvidence: hostile, conflictingEvidence: hostile, companyEvidence: hostile, explanation: hostile }],
     deadlines: [{ title: hostile, date: "2026-10-01T10:00:00+05:00", tenderEvidence: hostile }],
     actions: [{ title: hostile, description: hostile, priority: "high" }],
     alerts: [{ title: hostile, scheduledAt: "2026-09-30T10:00:00+05:00", status: "draft" }],
@@ -69,7 +69,7 @@ test("all untrusted report text is escaped, with no executable source markup or 
   };
   const html = createReportHtml({ assessment, mode: "live", analyzedAt, locale: "en" });
   assert.equal(html.includes(hostile), false);
-  assert.equal(html.split(escapeReportHtml(hostile)).length - 1, 11, "Each dynamic text field must be escaped without omitting any report content");
+  assert.equal(html.split(escapeReportHtml(hostile)).length - 1, 12, "Each dynamic text field must be escaped without omitting any report content");
   assert.doesNotMatch(html, /<script\b|<img\b|<iframe\b|<link\b|<form\b|<base\b/i);
   assert.equal([...html.matchAll(/\son\w+="[^\"]*"/g)].map(match => match[0]).join(""), ' onclick="window.print()"');
   assert.ok(html.includes("default-src 'none'"));

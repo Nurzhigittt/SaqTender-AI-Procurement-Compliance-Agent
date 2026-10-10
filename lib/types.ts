@@ -4,6 +4,7 @@ export const RequirementSchema = z.object({
   title: z.string().min(1).max(200),
   status: z.enum(["met", "missing", "at_risk", "unknown"]),
   tenderEvidence: z.string().min(1).max(2000),
+  conflictingEvidence: z.string().min(1).max(2000).optional(),
   companyEvidence: z.string().min(1).max(1000),
   explanation: z.string().min(1).max(2000),
 }).strict();
@@ -32,7 +33,7 @@ export const AssessmentSchema = z.object({
   officialEligibilityVerified: z.literal(false),
   requirements: z.array(RequirementSchema).max(60),
   deadlines: z.array(DeadlineSchema).max(30),
-  actions: z.array(ActionSchema).max(40),
+  actions: z.array(ActionSchema).max(90),
   alerts: z.array(AlertSchema).max(90),
   disclaimer: z.string().min(1).max(1500),
 }).strict();

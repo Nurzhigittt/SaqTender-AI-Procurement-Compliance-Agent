@@ -122,6 +122,13 @@ const CHECK_REASONS = new Map([
   ["Required company profile tool was not used", "profile_tool_missing"],
   ["Required date tool was not used for final deadlines", "final_calendar_mismatch"],
   ["Required alert tool was not used for final deadlines", "final_alert_mismatch"],
+  ["Ungrounded finding evidence", "finding_quote_mismatch"],
+  ["Unresolved deadline contains a unique explicit instant", "unresolved_deadline_is_explicit"],
+  ["Unresolved deadline reason is inconsistent with its evidence", "unresolved_deadline_reason_mismatch"],
+  ["Unexpected conflicting evidence", "unexpected_conflict_evidence"],
+  ["Conflicting finding needs a second source quote", "conflict_quote_missing"],
+  ["Conflicting finding needs distinct source quotes", "conflict_quotes_identical"],
+  ["Invalid conflicting requirement evidence", "conflict_evidence_invalid"],
 ]);
 const SDK_REASONS = new Map([
   ["MaxTurnsExceededError", "model_turn_limit"],

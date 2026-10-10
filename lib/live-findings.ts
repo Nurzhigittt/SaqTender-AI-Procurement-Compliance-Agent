@@ -1,0 +1,153 @@
+import { z } from "zod";
+import { createDraftAlerts } from "./alerts";
+import { getDisclaimer } from "./demo-data";
+import { explicitDatesInEvidence, validateGroundedAssessment } from "./grounding";
+import type { Locale } from "./i18n";
+import { DeadlineSchema, RequirementSchema, type Action, type Assessment, type CompanyProfile, type Requirement } from "./types";
+
+const UnresolvedDeadlineSchema = z.object({
+  tenderEvidence: z.string().min(1).max(2000),
+  reason: z.enum(["missing_timezone", "missing_time", "invalid_date", "ambiguous"]),
+}).strict();
+
+/** The model supplies findings; summary, risk, actions and alerts are server output. */
+export const LiveFindingsSchema = z.object({
+  requirements: z.array(RequirementSchema.extend({
+    clauseState: z.enum(["unambiguous", "conflicting", "conditional"]),
+    conflictingEvidence: z.string().min(1).max(2000).nullable(),
+  }).strict()).max(60),
+  deadlines: z.array(DeadlineSchema).max(30),
+  unresolvedDeadlines: z.array(UnresolvedDeadlineSchema).max(30),
+}).strict();
+
+export type LiveFindings = z.infer<typeof LiveFindingsSchema>;
+
+function excerpt(quote: string): string {
+  return quote.length <= 400 ? quote : `${quote.slice(0, 399)}…`;
+}
+
+function requireExactQuote(quote: string, tenderText: string): void {
+  if (!quote.trim() || !tenderText.includes(quote)) throw new Error("Ungrounded finding evidence");
+}
+
+function validateUnresolvedDeadline(item: LiveFindings["unresolvedDeadlines"][number], tenderText: string): void {
+  requireExactQuote(item.tenderEvidence, tenderText);
+  const dates = [...new Set(explicitDatesInEvidence(item.tenderEvidence))];
+  if (dates.length === 1) throw new Error("Unresolved deadline contains a unique explicit instant");
+
+  // These checks establish only the syntactic reason, never that a passage is a deadline.
+  // The model must identify its meaning and select the exact relevant source passage.
+  const day = /\b\d{4}-\d{2}-\d{2}\b/.test(item.tenderEvidence);
+  const time = /\b\d{4}-\d{2}-\d{2}[T\s]+\d{2}:\d{2}(?::\d{2})?\b/.test(item.tenderEvidence);
+  const completeCandidate = /\b\d{4}-\d{2}-\d{2}[T\s]+\d{2}:\d{2}(?::\d{2})?\s*(?:Asia\/Almaty|Z|(?:UTC\s*)?[+-]\d{2}:\d{2})(?![\w/])/.test(item.tenderEvidence);
+  if (item.reason === "missing_timezone" && (!day || !time || completeCandidate || dates.length)) {
+    throw new Error("Unresolved deadline reason is inconsistent with its evidence");
+  }
+  if (item.reason === "missing_time" && (!day || time || dates.length)) {
+    throw new Error("Unresolved deadline reason is inconsistent with its evidence");
+  }
+  if (item.reason === "invalid_date" && (!completeCandidate || dates.length)) {
+    throw new Error("Unresolved deadline reason is inconsistent with its evidence");
+  }
+}
+
+export function buildLiveAssessment(value: unknown, tenderText: string, profile: CompanyProfile, locale: Locale): Assessment {
+  const findings = LiveFindingsSchema.parse(value);
+  const tr = (en: string, ru: string) => locale === "ru" ? ru : en;
+  const requirements: Requirement[] = findings.requirements.map((finding, index) => {
+    const { clauseState, conflictingEvidence, ...requirement } = finding;
+    requireExactQuote(requirement.tenderEvidence, tenderText);
+    if (clauseState !== "conflicting" && conflictingEvidence !== null) {
+      throw new Error("Unexpected conflicting evidence");
+    }
+    if (clauseState === "conflicting") {
+      if (conflictingEvidence === null) throw new Error("Conflicting finding needs a second source quote");
+      requireExactQuote(conflictingEvidence, tenderText);
+      if (conflictingEvidence.trim() === requirement.tenderEvidence.trim()) {
+        throw new Error("Conflicting finding needs distinct source quotes");
+      }
+      // Source provenance and distinctness are checked here. Semantic opposition is
+      // the model's classification, not a fact established by a string comparison.
+      return {
+        ...requirement,
+        conflictingEvidence,
+        title: tr(`Conflicting conditions for requirement ${index + 1}`, `Противоречивые условия требования ${index + 1}`),
+        status: "unknown",
+        explanation: tr(
+          `Manually compare these two clauses and establish which applies. First: «${excerpt(requirement.tenderEvidence)}» Second: «${excerpt(conflictingEvidence)}»`,
+          `Вручную сопоставьте два условия и установите, какое из них применяется. Первое: «${excerpt(requirement.tenderEvidence)}» Второе: «${excerpt(conflictingEvidence)}»`,
+        ),
+      };
+    }
+    if (clauseState === "conditional") {
+      return {
+        ...requirement,
+        title: tr(`Conditional requirement ${index + 1}`, `Условное требование ${index + 1}`),
+        status: "unknown",
+        explanation: tr(
+          `It has not been established whether this condition applies to the company. Verify applicability before assessing compliance: «${excerpt(requirement.tenderEvidence)}»`,
+          `Не установлено, применяется ли это условие к компании. Уточните применимость, прежде чем оценивать выполнение: «${excerpt(requirement.tenderEvidence)}»`,
+        ),
+      };
+    }
+    return requirement;
+  });
+  findings.unresolvedDeadlines.forEach(item => validateUnresolvedDeadline(item, tenderText));
+
+  const missing = requirements.filter(item => item.status === "missing").length;
+  const atRisk = requirements.filter(item => item.status === "at_risk").length;
+  const unknown = requirements.filter(item => item.status === "unknown").length;
+  const unresolved = findings.unresolvedDeadlines.length;
+  const overallRisk: Assessment["overallRisk"] = missing ? "high" : atRisk ? "medium" : unknown || unresolved || !requirements.length ? "unknown" : "low";
+
+  const actions: Action[] = requirements.flatMap((requirement, index) => {
+    if (requirement.status === "met") return [];
+    const finding = findings.requirements[index];
+    const isMissing = requirement.status === "missing";
+    return [{
+      priority: isMissing ? "critical" as const : requirement.status === "at_risk" ? "high" as const : "medium" as const,
+      title: isMissing
+        ? tr(`Prepare evidence for requirement ${index + 1}`, `Подготовьте подтверждение требования ${index + 1}`)
+        : tr(`Verify requirement ${index + 1}`, `Проверьте требование ${index + 1}`),
+      description: finding.clauseState !== "unambiguous" ? requirement.explanation : isMissing
+        ? tr(
+          `The linked company record is marked missing. Check and prepare evidence for this tender requirement: «${excerpt(requirement.tenderEvidence)}»`,
+          `Связанная запись профиля отмечена как отсутствующая. Проверьте и подготовьте подтверждение этого требования тендера: «${excerpt(requirement.tenderEvidence)}»`,
+        )
+        : tr(
+          `Compare this requirement with the linked company record and original supporting documents: «${excerpt(requirement.tenderEvidence)}»`,
+          `Сопоставьте это требование со связанной записью профиля и оригиналами подтверждающих документов: «${excerpt(requirement.tenderEvidence)}»`,
+        ),
+    }];
+  });
+
+  const deadlineReasons = {
+    missing_timezone: tr("Confirm the deadline's time zone", "Уточните часовой пояс срока"),
+    missing_time: tr("Confirm the deadline's time", "Уточните время срока"),
+    invalid_date: tr("Verify the deadline's date and time", "Проверьте дату и время срока"),
+    ambiguous: tr("Clarify the deadline", "Уточните срок"),
+  };
+  actions.push(...findings.unresolvedDeadlines.map(item => ({
+    priority: "medium" as const,
+    title: deadlineReasons[item.reason],
+    description: tr(
+      `Confirm this passage against the complete tender before creating a reminder. No exact deadline or reminder was created from it: «${excerpt(item.tenderEvidence)}»`,
+      `Уточните этот фрагмент по полной документации тендера перед созданием напоминания. Точный срок и напоминание по нему не созданы: «${excerpt(item.tenderEvidence)}»`,
+    ),
+  })));
+
+  // Ordinary clear findings retain the original strict evidence/status checks.
+  return validateGroundedAssessment({
+    summary: tr(
+      `Tender requirements found: ${requirements.length}. Requirements linked to missing records: ${missing}; at-risk requirements: ${atRisk}; requirements needing clarification: ${unknown}. Exact deadlines: ${findings.deadlines.length}; deadline passages needing clarification: ${unresolved}. The assessment uses only the supplied text and profile records; official eligibility has not been checked.`,
+      `Выявлено требований тендера: ${requirements.length}. Требований с отсутствующим подтверждением в профиле: ${missing}; требований с риском: ${atRisk}; требований для уточнения: ${unknown}. Точных сроков: ${findings.deadlines.length}; фрагментов о сроках для уточнения: ${unresolved}. Оценка использует только предоставленный текст и записи профиля; официальный допуск не проверен.`,
+    ),
+    overallRisk,
+    officialEligibilityVerified: false,
+    requirements,
+    deadlines: findings.deadlines,
+    actions,
+    alerts: createDraftAlerts(findings.deadlines, locale),
+    disclaimer: getDisclaimer(locale, profile.isDemo),
+  }, tenderText, profile);
+}

@@ -67,6 +67,12 @@ export function validateGroundedAssessment(value: unknown, tenderText: string, c
   const companyEvidence = getCompanyEvidence(companyProfile);
   for (const requirement of assessment.requirements) {
     if (!tenderText.includes(requirement.tenderEvidence)) throw new Error("Ungrounded requirement evidence");
+    if (requirement.conflictingEvidence !== undefined && (
+      !requirement.conflictingEvidence.trim() ||
+      !tenderText.includes(requirement.conflictingEvidence) ||
+      requirement.conflictingEvidence.trim() === requirement.tenderEvidence.trim() ||
+      requirement.status !== "unknown"
+    )) throw new Error("Invalid conflicting requirement evidence");
     const documentId = Object.keys(companyEvidence).find((id) => companyEvidence[id] === requirement.companyEvidence);
     if (!documentId && requirement.companyEvidence !== UNKNOWN_COMPANY_EVIDENCE) {
       throw new Error("Ungrounded company evidence");

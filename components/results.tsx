@@ -11,6 +11,13 @@ type Props = { assessment: Assessment; mode: "demo" | "live"; analyzedAt: string
 
 export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, setTab, now, onRerun, isLoading, locale, reportLanguageMismatch = false, companyProfile = DEMO_COMPANY, profileChanged = false }: Props) {
   const tx = (en: string, ru: string) => translate(locale, en, ru);
+  const sourceEvidence = [
+    ...assessment.requirements.flatMap(r => [
+      { title: r.title, evidence: r.tenderEvidence, type: tx("REQUIREMENT", "ТРЕБОВАНИЕ") },
+      ...(r.conflictingEvidence ? [{ title: r.title, evidence: r.conflictingEvidence, type: tx("Conflicting clause", "Противоречивое условие") }] : []),
+    ]),
+    ...assessment.deadlines.map(d => ({ title: d.title, evidence: d.tenderEvidence, type: tx("DEADLINE", "СРОК") })),
+  ];
   const tabs = [
     { id: "requirements", label: tx("Requirements", "Требования"), count: assessment.requirements.length, icon: ListChecks },
     { id: "deadlines", label: tx("Deadlines", "Сроки"), count: assessment.deadlines.length, icon: CalendarClock },
@@ -107,7 +114,7 @@ export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, se
           <div className="requirements-header"><span>{tx("TENDER REQUIREMENT", "ТРЕБОВАНИЕ ТЕНДЕРА")}</span><span>{tx("COMPANY EVIDENCE", "ДАННЫЕ КОМПАНИИ")}</span><span>{tx("STATUS", "СТАТУС")}</span><span /></div>
           {assessment.requirements.length ? assessment.requirements.map((r, index) => <details id={`requirement-${index}`} className="requirement-row" data-status={r.status} key={index}>
             <summary><span className="requirement-title"><span className="row-number">{String(index + 1).padStart(2, "0")}</span><strong>{r.title}</strong></span><span className="company-evidence-preview">{translateCompanyEvidence(r.companyEvidence, locale, companyProfile)}</span><StatusBadge status={r.status} locale={locale} /><ChevronDown className="expand-icon" size={16} /></summary>
-            <div className="requirement-expanded"><div><span className="evidence-label"><Quote size={13} /> {tx("TENDER EVIDENCE", "ЦИТАТА ИЗ ТЕНДЕРА")}</span><blockquote>{r.tenderEvidence}</blockquote></div><div><span className="evidence-label"><FileCheck2 size={13} /> {tx("COMPANY EVIDENCE", "ДАННЫЕ КОМПАНИИ")}</span><p>{translateCompanyEvidence(r.companyEvidence, locale, companyProfile)}</p><span className="evidence-label">{tx("ASSESSMENT", "ОЦЕНКА")}</span><p>{r.explanation}</p></div></div>
+            <div className="requirement-expanded"><div><span className="evidence-label"><Quote size={13} /> {tx("TENDER EVIDENCE", "ЦИТАТА ИЗ ТЕНДЕРА")}</span><blockquote>{r.tenderEvidence}</blockquote>{r.conflictingEvidence && <><span className="evidence-label"><Quote size={13} /> {tx("Conflicting clause", "Противоречивое условие")}</span><blockquote>{r.conflictingEvidence}</blockquote></>}</div><div><span className="evidence-label"><FileCheck2 size={13} /> {tx("COMPANY EVIDENCE", "ДАННЫЕ КОМПАНИИ")}</span><p>{translateCompanyEvidence(r.companyEvidence, locale, companyProfile)}</p><span className="evidence-label">{tx("ASSESSMENT", "ОЦЕНКА")}</span><p>{r.explanation}</p></div></div>
           </details>) : <EmptyDetail text={tx("No supported requirements were extracted. Add clearer tender text and run again.", "Подтверждённые требования не найдены. Добавьте более подробный текст тендера и повторите проверку.")} />}
         </>}
 
@@ -131,8 +138,8 @@ export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, se
         </>}
 
         {tab === "evidence" && <>
-          <div className="tab-description"><p>{tx("Source evidence", "Цитаты из источника")} <span>{tx("Direct excerpts from the analyzed tender text.", "Дословные выдержки из проверенного текста тендера.")}</span></p><Badge tone="neutral">{tx(`${assessment.requirements.length + assessment.deadlines.length} excerpts`, `Цитат: ${assessment.requirements.length + assessment.deadlines.length}`)}</Badge></div>
-          <div className="evidence-grid">{[...assessment.requirements.map(r => ({ title: r.title, evidence: r.tenderEvidence, type: tx("REQUIREMENT", "ТРЕБОВАНИЕ") })), ...assessment.deadlines.map(d => ({ title: d.title, evidence: d.tenderEvidence, type: tx("DEADLINE", "СРОК") }))].map((e, index) => <article key={index} className="source-card"><span className="source-type"><Quote size={14} /> {e.type} <span>{String(index + 1).padStart(2, "0")}</span></span><h3>{e.title}</h3><blockquote>{e.evidence}</blockquote><span className="source-origin"><FileCheck2 size={12} /> {tx("Provided tender text", "Предоставленный текст тендера")}</span></article>)}</div>
+          <div className="tab-description"><p>{tx("Source evidence", "Цитаты из источника")} <span>{tx("Direct excerpts from the analyzed tender text.", "Дословные выдержки из проверенного текста тендера.")}</span></p><Badge tone="neutral">{tx(`${sourceEvidence.length} excerpts`, `Цитат: ${sourceEvidence.length}`)}</Badge></div>
+          <div className="evidence-grid">{sourceEvidence.map((e, index) => <article key={index} className="source-card"><span className="source-type"><Quote size={14} /> {e.type} <span>{String(index + 1).padStart(2, "0")}</span></span><h3>{e.title}</h3><blockquote>{e.evidence}</blockquote><span className="source-origin"><FileCheck2 size={12} /> {tx("Provided tender text", "Предоставленный текст тендера")}</span></article>)}</div>
           {!assessment.requirements.length && !assessment.deadlines.length && <EmptyDetail text={tx("No supported excerpts were found in this text.", "В этом тексте не найдены цитаты, подтверждающие требования или сроки.")} />}
         </>}
       </div>
