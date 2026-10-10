@@ -70,6 +70,20 @@ The selected run returned an assessment for `missing-timezone-ru`, failed execut
 
 These cases expose remaining quality issues, especially ungrounded statements in summaries and recommended actions: exact-quote checks on requirements do not validate every natural-language claim. They are development evidence, not a full 20-case benchmark or an estimate of real-world accuracy. All three expect zero deadlines, so this subset does not measure extraction of explicit timestamps. Each case has only one attempt on this version; repeatability is unmeasured.
 
-Next quality work: bind recommended actions to specific extracted findings, separate unresolved calendar information from qualification requirements, and handle contradictory clauses conservatively. Keep the above failures as regression examples and add unseen specialist-reviewed cases before making accuracy claims.
+These failures motivated binding recommended actions to specific extracted findings, separating unresolved calendar information from qualification requirements, and handling contradictory clauses conservatively. The original failures remain recorded above.
+
+### Published code `bad17df`, 20:41 Asia/Almaty
+
+One bounded remote run selected `missing-timezone-ru`, `conflicting-clauses-ru` and `expired-opinion-ru`. All three were attempted once, with no client retries and no changes to the grader. Two returned assessments passed the development expectations and were manually reviewed; the third failed execution. No cases were left unrun.
+
+| Case | Automatic result | Manual review / diagnosis |
+| --- | --- | --- |
+| `missing-timezone-ru` | Pass | Returned no qualification requirements, dates or reminders, with unknown risk and one action quoting the incomplete deadline and asking for its timezone. The unrelated experience-document advice and unsupported active-document summary were absent. |
+| `conflicting-clauses-ru` | Pass | Returned one requirement with unknown status, both exact opposing clauses and one clarification action. Neither the company record nor the available-document status was used to resolve the contradiction. |
+| `expired-opinion-ru` | Execution failure | Server rejected an unsupported missing-document claim (`final_received` / `unsupported_missing_claim`) for a present but expired record. No accepted assessment was available for semantic review. |
+
+A separate single browser analysis used the fictional default company and the contradictory clauses. It completed in Live AI mode. Visual inspection confirmed the unknown finding and both complete source quotes; the downloaded HTML report retained both quotes and the live-analysis label. There were four analysis requests in total across the remote and browser checks.
+
+This is **two passes out of three selected development cases**, not a real-world accuracy estimate. Repeatability, the full live benchmark and expert-reviewed unseen cases remain unmeasured. Exact quotes do not establish correct interpretation. The next quality priority is correctly distinguishing absent documents from present but expired documents while retaining strict validation; the expiry case remains unresolved.
 
 `npm test` checks the calendar tool, validation boundaries, SDK orchestration with intercepted transport and the grader itself. Passing those tests demonstrates technical behavior, not the language model's extraction quality.
