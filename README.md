@@ -11,7 +11,7 @@ The initial audience is construction, design and engineering companies participa
 ## What the demo does
 
 1. Shows the company's document profile and lets the user edit its name, industry, document availability and dates. Saving to this browser is optional.
-2. Accepts an editable tender text, with a sample available to load.
+2. Accepts editable tender text, a sample, or a PDF/TXT file. File imports have a review step before replacing the editor text.
 3. Extracts requirements and deadlines with direct text evidence.
 4. Compares requirements with the supplied profile.
 5. Displays a requirements matrix, risk assessment and recommended actions.
@@ -23,6 +23,16 @@ The initial audience is construction, design and engineering companies participa
 The application does not send notifications or schedule background jobs. Draft alerts are part of the returned assessment.
 
 The walkthrough only helps navigate the interface. It does not replace tender text or start an analysis. Its report steps require a current completed assessment. Downloading is also disabled while the report needs a new check.
+
+## Import a tender document
+
+Select **Загрузить PDF / TXT / Import PDF / TXT**, choose a file, review and edit the extracted text, then select **Использовать текст / Use this text**. Applying replaces the editor contents and marks any previous assessment stale. Cancel leaves the existing tender and report unchanged. Run a new analysis separately.
+
+- Supports text-layer PDFs and UTF-8 TXT, including Cyrillic and UTF-8 BOM. Limits: 5 MiB, 30 PDF pages, 20,000 characters, 30 seconds. Oversized text is rejected, never silently truncated.
+- PDF extraction uses [Mozilla PDF.js](https://mozilla.github.io/pdf.js/examples/) in a dedicated browser worker, loaded from the same application. Original file bytes are not uploaded, persisted or sent to OpenAI. The reviewed text is sent to `/api/analyze` only when the user starts a check; in Live AI mode it is then sent to OpenAI.
+- There is no OCR. PDFs without extractable text are rejected; partially empty PDFs identify pages requiring review and block application until the user confirms they checked those pages. Image-only sections within a page that also has text cannot be detected reliably.
+- Password-protected or unreadable PDFs return an actionable error. Text order, table structure, glyphs and invisible text layers may be inaccurate: users must compare requirements, amounts and dates with the original. Source quotes in an assessment refer to the reviewed text, not a verified PDF page coordinate.
+- Imports do not improve the deterministic demo's understanding of arbitrary tenders. Demo findings remain conservative, and live-model quality remains unverified.
 
 ## Interface languages
 
@@ -50,7 +60,7 @@ Zod validates incoming requests and structured assessment output. Every assessme
 
 ## Local setup
 
-Use Node.js 22 or newer and npm.
+Use Node.js 22.13 or newer and npm.
 
 ```bash
 npm install
@@ -76,7 +86,7 @@ npm test
 ## Verification
 
 - `npm install` and the optimized production build complete successfully.
-- `npm test`: 56 tests pass, covering profile input and evidence, calendar comparisons, localization, error handling, HTML export, the benchmark grader and the real Agents SDK with intercepted offline provider transport. These are technical regression checks, not a measured accuracy score on real tenders.
+- `npm test`: 63 tests pass, covering PDF/TXT extraction and import limits, profile input and evidence, calendar comparisons, localization, error handling, HTML export, the benchmark grader and the real Agents SDK with intercepted offline provider transport. These are technical regression checks, not a measured accuracy score on real tenders.
 - Browser checks cover sample analysis, all report tabs, expanded evidence, edited-text behavior, validation errors, mobile widths (320px and 390px), and 200% zoom.
 - The public deployment was rechecked on 25 September 2026 in Demo Mode: the sample API request returned HTTP 200 with four requirements, two deadlines and six draft reminders. Earlier production browser checks covered public access, report tabs, source evidence and a 390px mobile viewport.
 - A real OpenAI API analysis is **not yet verified**. On 9 October 2026, a production live request returned HTTP 502 with `ai_authentication_failed`. The configured OpenAI credentials were rejected. Demo Mode was restored and its API returned HTTP 200 with four requirements, two deadlines and six draft reminders. Offline SDK tests do not replace a successful live check.
@@ -115,7 +125,7 @@ Environment changes require a new deployment. Live requests are subject to model
 
 ## Data handling and limitations
 
-- No database, user accounts, uploads, registry integration, background monitoring or document-authenticity checks.
+- No database, user accounts, server-side file uploads, OCR, registry integration, background monitoring or document-authenticity checks.
 - Tender text and assessments are not persisted to application storage. The profile stays in the current tab unless the user selects **Remember this profile in this browser**; this saves only the profile in localStorage, accessible to other users of that browser. Unchecking and applying removes that saved copy. Language is remembered in a cookie. Downloaded reports are saved on the user's device.
 - In live mode, tender text and the supplied company profile are sent to OpenAI to generate the assessment. Provider processing and retention policies still apply; the absence of an application database is not a promise that no external service processes the data.
 - Default document dates/statuses are fictional; edited records are user statements and remain unverified. Time-sensitive interface labels use the current date; the sample retains fixed September 2026 deadlines. There is no verified company registration, license, tax status, supplier blacklist or manufacturer-registry lookup.
