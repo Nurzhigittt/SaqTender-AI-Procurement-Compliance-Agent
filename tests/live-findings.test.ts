@@ -238,3 +238,47 @@ test("all 60 requirement findings and 30 unresolved deadlines retain their actio
   assert.equal(result.overallRisk, "high");
   assert.equal(AssessmentSchema.safeParse(result).success, true);
 });
+
+test("PDF whitespace recovery restores requirement and unresolved evidence before building the report", () => {
+  const originalRequirement = "Участник обязан предоставить\nподтверждение опыта работы.";
+  const originalPeriod = "Срок: 120 календарных дней\nсо дня подписания договора.";
+  const text = `${originalRequirement}\n${originalPeriod}`;
+  const input = findings({
+    requirements: [requirement({ tenderEvidence: originalRequirement.replace(/\s+/g, " ") })],
+    unresolvedDeadlines: [{ tenderEvidence: originalPeriod.replace(/\s+/g, " "), reason: "missing_timezone" }],
+  });
+  const before = structuredClone(input);
+  const result = buildLiveAssessment(input, text, DEMO_COMPANY, "ru");
+  assert.equal(result.requirements[0].tenderEvidence, originalRequirement);
+  assert.equal(result.requirements[0].status, "missing");
+  assert.ok(result.actions[0].description.includes(originalRequirement));
+  assert.ok(result.actions[1].description.includes(originalPeriod));
+  assert.equal(result.actions[1].title, "Уточните срок");
+  assert.deepEqual(result.deadlines, []);
+  assert.deepEqual(result.alerts, []);
+  assert.deepEqual(input, before);
+});
+
+test("PDF whitespace recovery preserves both opposing clauses and still rejects identical recovered quotes", () => {
+  const first = "Подтверждение опыта\nобязательно.";
+  const second = "Подтверждение опыта\nне требуется.";
+  const input = findings({ requirements: [requirement({
+    tenderEvidence: first.replace(/\s+/g, " "),
+    conflictingEvidence: second.replace(/\s+/g, " "), clauseState: "conflicting",
+  })] });
+  const result = buildLiveAssessment(input, `${first}\n${second}`, DEMO_COMPANY, "ru");
+  assert.equal(result.requirements[0].tenderEvidence, first);
+  assert.equal(result.requirements[0].conflictingEvidence, second);
+  assert.equal(result.requirements[0].status, "unknown");
+  assert.ok(result.actions[0].description.includes(first));
+  assert.ok(result.actions[0].description.includes(second));
+  input.requirements[0].conflictingEvidence = first;
+  assert.throws(() => buildLiveAssessment(input, `${first}\n${second}`, DEMO_COMPANY, "ru"), /distinct source quotes/);
+});
+
+test("restoring PDF whitespace cannot hide an explicit deadline in unresolved findings", () => {
+  const source = "Срок подачи: 2026-11-10\n10:00\t+05:00.";
+  assert.throws(() => buildLiveAssessment(findings({ unresolvedDeadlines: [{
+    tenderEvidence: source.replace(/\s+/g, " "), reason: "missing_timezone",
+  }] }), source, DEMO_COMPANY, "ru"), /unique explicit instant/);
+});

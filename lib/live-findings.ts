@@ -3,6 +3,7 @@ import { createDraftAlerts } from "./alerts";
 import { getDisclaimer } from "./demo-data";
 import { explicitDatesInEvidence, validateGroundedAssessment } from "./grounding";
 import type { Locale } from "./i18n";
+import { resolveFindingQuote } from "./source-evidence";
 import { DeadlineSchema, RequirementSchema, type Action, type Assessment, type CompanyProfile, type Requirement } from "./types";
 
 const UnresolvedDeadlineSchema = z.object({
@@ -26,12 +27,8 @@ function excerpt(quote: string): string {
   return quote.length <= 400 ? quote : `${quote.slice(0, 399)}…`;
 }
 
-function requireExactQuote(quote: string, tenderText: string): void {
-  if (!quote.trim() || !tenderText.includes(quote)) throw new Error("Ungrounded finding evidence");
-}
-
 function resolveUnresolvedDeadlineReason(item: LiveFindings["unresolvedDeadlines"][number], tenderText: string): LiveFindings["unresolvedDeadlines"][number]["reason"] {
-  requireExactQuote(item.tenderEvidence, tenderText);
+  if (!tenderText.includes(item.tenderEvidence)) throw new Error("Ungrounded finding evidence");
   const dates = [...new Set(explicitDatesInEvidence(item.tenderEvidence))];
   if (dates.length === 1) throw new Error("Unresolved deadline contains a unique explicit instant");
 
@@ -58,27 +55,27 @@ export function buildLiveAssessment(value: unknown, tenderText: string, profile:
   const findings = LiveFindingsSchema.parse(value);
   const tr = (en: string, ru: string) => locale === "ru" ? ru : en;
   const requirements: Requirement[] = findings.requirements.map((finding, index) => {
-    const { clauseState, conflictingEvidence, ...requirement } = finding;
-    requireExactQuote(requirement.tenderEvidence, tenderText);
+    const { clauseState, conflictingEvidence, ...rawRequirement } = finding;
+    const requirement = { ...rawRequirement, tenderEvidence: resolveFindingQuote(rawRequirement.tenderEvidence, tenderText) };
     if (clauseState !== "conflicting" && conflictingEvidence !== null) {
       throw new Error("Unexpected conflicting evidence");
     }
     if (clauseState === "conflicting") {
       if (conflictingEvidence === null) throw new Error("Conflicting finding needs a second source quote");
-      requireExactQuote(conflictingEvidence, tenderText);
-      if (conflictingEvidence.trim() === requirement.tenderEvidence.trim()) {
+      const sourceConflict = resolveFindingQuote(conflictingEvidence, tenderText);
+      if (sourceConflict.trim() === requirement.tenderEvidence.trim()) {
         throw new Error("Conflicting finding needs distinct source quotes");
       }
       // Source provenance and distinctness are checked here. Semantic opposition is
       // the model's classification, not a fact established by a string comparison.
       return {
         ...requirement,
-        conflictingEvidence,
+        conflictingEvidence: sourceConflict,
         title: tr(`Conflicting conditions for requirement ${index + 1}`, `Противоречивые условия требования ${index + 1}`),
         status: "unknown",
         explanation: tr(
-          `Manually compare these two clauses and establish which applies. First: «${excerpt(requirement.tenderEvidence)}» Second: «${excerpt(conflictingEvidence)}»`,
-          `Вручную сопоставьте два условия и установите, какое из них применяется. Первое: «${excerpt(requirement.tenderEvidence)}» Второе: «${excerpt(conflictingEvidence)}»`,
+          `Manually compare these two clauses and establish which applies. First: «${excerpt(requirement.tenderEvidence)}» Second: «${excerpt(sourceConflict)}»`,
+          `Вручную сопоставьте два условия и установите, какое из них применяется. Первое: «${excerpt(requirement.tenderEvidence)}» Второе: «${excerpt(sourceConflict)}»`,
         ),
       };
     }
@@ -95,10 +92,10 @@ export function buildLiveAssessment(value: unknown, tenderText: string, profile:
     }
     return requirement;
   });
-  const unresolvedDeadlines = findings.unresolvedDeadlines.map(item => ({
-    ...item,
-    reason: resolveUnresolvedDeadlineReason(item, tenderText),
-  }));
+  const unresolvedDeadlines = findings.unresolvedDeadlines.map(item => {
+    const restored = { ...item, tenderEvidence: resolveFindingQuote(item.tenderEvidence, tenderText) };
+    return { ...restored, reason: resolveUnresolvedDeadlineReason(restored, tenderText) };
+  });
 
   const missing = requirements.filter(item => item.status === "missing").length;
   const atRisk = requirements.filter(item => item.status === "at_risk").length;
