@@ -14,6 +14,9 @@
 .import input { display: block; width: 100%; min-width: 0; border: 1px dashed #a1cabc; background: #f6fbf9; border-radius: 8px; padding: 10px; color: #3f685d; font-size: 12px; }
 .import input::file-selector-button { border: 0; border-radius: 5px; padding: 7px 10px; margin-right: 10px; color: #176653; background: #e1f0e9; cursor: pointer; }
 .import small { display: block; margin-top: 8px; font-size: 11px; line-height: 1.6; color: #7a8d95; }
+.practiceOption { margin-top: 20px; padding-top: 18px; border-top: 1px solid #e4ecee; }
+.practiceOption button { display: inline-flex; align-items: center; gap: 8px; padding: 11px 13px; border-radius: 7px; border: 1px solid #cfdeed; background: #f3f8ff; color: #3d668b; font-size: 12px; font-weight: 600; }
+.practiceOption button:disabled { opacity: .5; cursor: wait; }
 .import .reading { display: flex; gap: 8px; align-items: center; margin-top: 16px; }
 .import .error { margin-top: 16px; padding: 12px; color: #a14c40; background: #fff0ed; border-radius: 8px; }
 .preview { background: #f1f8f4; border: 1px solid #cce3d6; border-radius: 10px; padding: 18px; margin-top: 18px; }

@@ -10,14 +10,16 @@ import { translate, type Locale } from "@/lib/i18n";
 import { formatDate } from "./ui";
 import styles from "./review-comparison.module.css";
 
-type Props = { base: ReviewPacket; sourceName: string; locale: Locale; active: boolean };
+type Props = { base: ReviewPacket; sourceName: string; locale: Locale; active: boolean; initialFile?: FileReview };
 type FileReview = { name: string; packet: ReviewPacket };
 type ErrorCode = "invalid_file" | "unsupported_version" | "too_large" | "mismatched_report" | "invalid_review";
 
-export function ReviewComparison({ base, sourceName, locale, active }: Props) {
+export function ReviewComparison({ base, sourceName, locale, active, initialFile }: Props) {
   const id = useId();
   const generation = useRef(0);
-  const [file, setFile] = useState<FileReview | null>(null);
+  // The parent remounts this component when another saved/practice review is opened.
+  const [file, setFile] = useState<FileReview | null>(() => initialFile ?? null);
+  const [expanded, setExpanded] = useState(Boolean(initialFile));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ErrorCode | null>(null);
   const [exportError, setExportError] = useState(false);
@@ -83,7 +85,7 @@ export function ReviewComparison({ base, sourceName, locale, active }: Props) {
   }
   const displayedRows = comparison?.rows.filter(row => !onlyDiscussion || row.needsDiscussion) ?? [];
 
-  return <details className={styles.panel} lang={locale}>
+  return <details className={styles.panel} lang={locale} open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
     <summary><GitCompareArrows size={17} />{tx("Compare two reviews", "Сравнить две проверки")}</summary>
     <div className={styles.body}>
       <p className={styles.intro}>{tx("Compare your current notes below with a teammate’s saved JSON from the same original report. Files are read only in your browser, without an AI request. The original assessment and notes stay unchanged.", "Сравните текущие замечания ниже с сохранённым JSON коллеги по тому же исходному отчёту. Файлы читаются только в браузере, без запроса к ИИ. Исходный анализ и замечания остаются прежними.")}</p>

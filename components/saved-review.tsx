@@ -1,17 +1,19 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { ArrowRight, FolderOpen, LoaderCircle, X } from "lucide-react";
+import { ArrowRight, FolderOpen, GraduationCap, LoaderCircle, X } from "lucide-react";
 import type { ReviewPacket } from "@/lib/assessment-review";
 import { summarizeReview } from "@/lib/assessment-review";
 import { parseReviewFile, REVIEW_FILE_MAX_BYTES, ReviewImportError } from "@/lib/review-import";
+import { createPracticeReviews, type PracticeReviews } from "@/lib/review-practice";
 import { translate, type Locale } from "@/lib/i18n";
 import { ManualAssessmentReview } from "./assessment-review";
 import { ReviewComparison } from "./review-comparison";
+import { PracticeReviewGuide } from "./review-practice";
 import { formatDate } from "./ui";
 import styles from "./saved-review.module.css";
 
-type SavedFile = { name: string; packet: ReviewPacket };
+type SavedFile = { name: string; packet: ReviewPacket; practice?: PracticeReviews };
 
 /** Opens a local review independently of the current analyzer and company profile. */
 export function SavedReview({ locale, disabled }: { locale: Locale; disabled: boolean }) {
@@ -22,7 +24,7 @@ export function SavedReview({ locale, disabled }: { locale: Locale; disabled: bo
   const body = useRef<HTMLDivElement>(null);
   const generation = useRef(0);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<"invalid_file" | "unsupported_version" | "too_large" | null>(null);
+  const [error, setError] = useState<"invalid_file" | "unsupported_version" | "too_large" | "practice_failed" | null>(null);
   const [preview, setPreview] = useState<SavedFile | null>(null);
   const [opened, setOpened] = useState<SavedFile | null>(null);
   const [revision, setRevision] = useState(0);
@@ -62,10 +64,21 @@ export function SavedReview({ locale, disabled }: { locale: Locale; disabled: bo
     heading.current?.focus();
   }
 
+  function preparePractice() {
+    if (busy) return;
+    generation.current += 1;
+    setError(null); setPreview(null);
+    try {
+      const practice = createPracticeReviews(locale);
+      setPreview({ ...practice.left, practice });
+    } catch { setError("practice_failed"); }
+  }
+
   const errors = {
     invalid_file: tx("This file is not a valid saved SaqTender review. Choose the JSON downloaded with Save to continue.", "Это не сохранённая проверка SaqTender или файл повреждён. Выберите JSON, скачанный кнопкой «Сохранить для продолжения»."),
     unsupported_version: tx("This review uses an unsupported file version. Open a saqtender-review-v1 JSON file.", "Эта версия файла пока не поддерживается. Выберите JSON проверки формата saqtender-review-v1."),
     too_large: tx("The file exceeds the 8 MiB limit. Choose a saved review JSON, not the original tender document.", "Файл превышает лимит 8 МиБ. Выберите JSON сохранённой проверки, а не исходный документ тендера."),
+    practice_failed: tx("The practice example could not be opened. Try again.", "Не удалось открыть учебный пример. Попробуйте ещё раз."),
   };
 
   return <>
@@ -79,13 +92,15 @@ export function SavedReview({ locale, disabled }: { locale: Locale; disabled: bo
             <label htmlFor={`${id}-file`}>{opened ? tx("Choose another review", "Выбрать другую проверку") : tx("Choose saved JSON", "Выбрать сохранённый JSON")}</label>
             <input id={`${id}-file`} type="file" accept=".json,application/json" disabled={busy} aria-describedby={`${id}-limits`} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void readFile(file); }} />
             <small id={`${id}-limits`}>{tx("SaqTender review JSON · UTF-8 · Up to 8 MiB · HTML cannot be imported", "JSON проверки SaqTender · UTF-8 · До 8 МиБ · HTML не загружается")}</small>
+            <div className={styles.practiceOption}><button type="button" disabled={busy} onClick={preparePractice}><GraduationCap size={17} />{tx("Try a practice example", "Попробовать на учебном примере")}</button><small>{tx("No files needed: a fictional tender and two prefilled reviews. No AI request.", "Без подготовки файлов: вымышленный тендер и две заполненные проверки. Без запроса к ИИ.")}</small></div>
             {busy && <p className={styles.reading} role="status"><LoaderCircle size={16} className="spin" />{tx("Reading saved review…", "Читаем сохранённую проверку…")}</p>}
             {error && <p className={styles.error} role="alert">{errors[error]}</p>}
-            {preview && <div className={styles.preview} role="status"><span>{preview.name}</span><h3>{preview.packet.companyProfile.name}</h3><p>{tx("Original analysis", "Исходный анализ")}: {formatDate(preview.packet.analyzedAt, true, locale)} · {tx("Almaty", "Алматы")}</p><p>{tx("Marked items", "Отмечено пунктов")}: {summarizeReview(preview.packet.review).marked} / {summarizeReview(preview.packet.review).total} · {preview.packet.locale.toUpperCase()}</p><p>{tx("The file’s authenticity and contents have not been verified. The full original tender text is not included.", "Подлинность и содержание файла не проверены. Полный исходный текст тендера в файл не входит.")}</p>{opened && <p>{tx("Opening replaces the saved review below. Download any changes there before continuing.", "Открытие заменит сохранённую проверку ниже. Сначала скачайте внесённые в неё изменения.")}</p>}<div className={styles.previewActions}><button type="button" className={styles.secondary} onClick={() => setPreview(null)}>{tx("Cancel", "Отмена")}</button><button type="button" onClick={openPreview}>{opened ? tx("Open instead of current", "Открыть вместо текущей") : tx("Open review", "Открыть замечания")}<ArrowRight size={15} /></button></div></div>}
+            {preview && <div className={styles.preview} role="status"><span>{preview.practice ? tx("FICTIONAL PRACTICE · A + B", "УЧЕБНЫЙ ПРИМЕР · А + Б") : preview.name}</span><h3>{preview.packet.companyProfile.name}</h3><p>{tx("Original analysis", "Исходный анализ")}: {formatDate(preview.packet.analyzedAt, true, locale)} · {tx("Almaty", "Алматы")}</p><p>{tx("Marked items", "Отмечено пунктов")}: {summarizeReview(preview.packet.review).marked} / {summarizeReview(preview.packet.review).total} · {preview.packet.locale.toUpperCase()}</p><p>{preview.practice ? tx("Includes the full fictional tender, a fixed demo report dated 24 September 2026 and two prefilled opinions. These are not expert findings or an answer key.", "Включает полный вымышленный тендер, фиксированный демоотчёт от 24 сентября 2026 года и два заполненных мнения. Это не экспертные выводы и не эталон ответов.") : tx("The file’s authenticity and contents have not been verified. The full original tender text is not included.", "Подлинность и содержание файла не проверены. Полный исходный текст тендера в файл не входит.")}</p>{opened && <p>{tx("Opening replaces the saved review below. Download any changes there before continuing.", "Открытие заменит сохранённую проверку ниже. Сначала скачайте внесённые в неё изменения.")}</p>}<div className={styles.previewActions}><button type="button" className={styles.secondary} onClick={() => setPreview(null)}>{tx("Cancel", "Отмена")}</button><button type="button" onClick={openPreview}>{opened ? tx("Open instead of current", "Открыть вместо текущей") : preview.practice ? tx("Open practice", "Открыть учебный пример") : tx("Open review", "Открыть замечания")}<ArrowRight size={15} /></button></div></div>}
           </div>
           {opened && <div lang={opened.packet.locale}>
-            <div className={styles.archive} lang={locale}><span className={styles.kicker}>{tx("FROM A FILE · NOT A NEW ANALYSIS", "ИЗ ФАЙЛА · БЕЗ НОВОГО АНАЛИЗА")}</span><h3>{opened.packet.companyProfile.name}</h3><p>{opened.name}</p><dl><div><dt>{tx("Original analysis", "Исходный анализ")}</dt><dd>{formatDate(opened.packet.analyzedAt, true, locale)} · {tx("Almaty", "Алматы")}</dd></div><div><dt>{tx("Snapshot saved in file", "Снимок замечаний в файле")}</dt><dd>{formatDate(opened.packet.reviewedAt, true, locale)} · {tx("Almaty", "Алматы")}</dd></div><div><dt>{tx("Mode stated in file", "Режим, указанный в файле")}</dt><dd>{opened.packet.mode === "demo" ? tx("Demo", "Демо") : tx("Live AI", "Онлайн-ИИ")}</dd></div><div><dt>{tx("Report language", "Язык отчёта")}</dt><dd>{opened.packet.locale.toUpperCase()}</dd></div></dl><p>{tx("This is a saved snapshot, not a current check. File authenticity is unverified. Compare it with the original tender and documents; source quotes alone do not show the full context.", "Это сохранённый снимок, а не актуальная проверка. Подлинность файла не подтверждена. Сверяйте его с оригиналами тендера и документов: цитаты не передают весь контекст.")}</p><details><summary>{tx("Original assessment summary", "Итоги исходного анализа")}</summary><p lang={opened.packet.locale}>{opened.packet.assessment.summary}</p><p lang={opened.packet.locale}>{opened.packet.assessment.disclaimer}</p></details></div>
-            <ReviewComparison key={`comparison-${revision}`} base={opened.packet} sourceName={opened.name} locale={locale} active={active} />
+            <div className={styles.archive} lang={locale}><span className={styles.kicker}>{opened.practice ? tx("FICTIONAL PRACTICE · NO AI REQUEST", "УЧЕБНЫЙ ПРИМЕР · БЕЗ ЗАПРОСА К ИИ") : tx("FROM A FILE · NOT A NEW ANALYSIS", "ИЗ ФАЙЛА · БЕЗ НОВОГО АНАЛИЗА")}</span><h3>{opened.packet.companyProfile.name}</h3><p>{opened.name}</p><dl><div><dt>{tx("Original analysis", "Исходный анализ")}</dt><dd>{formatDate(opened.packet.analyzedAt, true, locale)} · {tx("Almaty", "Алматы")}</dd></div><div><dt>{tx("Snapshot saved in file", "Снимок замечаний в файле")}</dt><dd>{formatDate(opened.packet.reviewedAt, true, locale)} · {tx("Almaty", "Алматы")}</dd></div><div><dt>{tx("Mode stated in file", "Режим, указанный в файле")}</dt><dd>{opened.packet.mode === "demo" ? tx("Demo", "Демо") : tx("Live AI", "Онлайн-ИИ")}</dd></div><div><dt>{tx("Report language", "Язык отчёта")}</dt><dd>{opened.packet.locale.toUpperCase()}</dd></div></dl><p>{opened.practice ? tx("This is a historical teaching snapshot with a fictional company and prefilled notes. Use the full sample below to discuss the findings; it is not a current tender or a live AI result.", "Это исторический учебный снимок с вымышленной компанией и заполненными замечаниями. Обсудите выводы по полному примеру ниже; это не актуальный тендер и не результат онлайн-ИИ.") : tx("This is a saved snapshot, not a current check. File authenticity is unverified. Compare it with the original tender and documents; source quotes alone do not show the full context.", "Это сохранённый снимок, а не актуальная проверка. Подлинность файла не подтверждена. Сверяйте его с оригиналами тендера и документов: цитаты не передают весь контекст.")}</p><details><summary>{tx("Original assessment summary", "Итоги исходного анализа")}</summary><p lang={opened.packet.locale}>{opened.packet.assessment.summary}</p><p lang={opened.packet.locale}>{opened.packet.assessment.disclaimer}</p></details></div>
+            {opened.practice && <PracticeReviewGuide key={`practice-${revision}`} practice={opened.practice} locale={locale} />}
+            <ReviewComparison key={`comparison-${revision}`} base={opened.packet} sourceName={opened.name} locale={locale} active={active} initialFile={opened.practice?.right} />
             <ManualAssessmentReview key={revision} {...opened.packet} disabled={false} onChange={review => setOpened(current => current ? { ...current, packet: { ...current.packet, review } } : current)} />
           </div>}
         </div>
