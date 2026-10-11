@@ -123,7 +123,7 @@ test("fully specified deadlines cannot be hidden in unresolved findings, even wi
   }
 });
 
-test("unresolved deadline reasons need exact source and consistent syntax without inventing timestamps", () => {
+test("unresolved deadlines retain exact source and use neutral wording for unsupported reasons", () => {
   const examples = [
     { tenderEvidence: "Deadline: 2026-11-10. Time is unspecified.", reason: "missing_time" },
     { tenderEvidence: "Deadline: 2026-11-10 UTC+05:00. Time is unspecified.", reason: "missing_time" },
@@ -139,7 +139,12 @@ test("unresolved deadline reasons need exact source and consistent syntax withou
   }
   const quote = "Deadline: 2026-11-10 10:00. Time zone is unspecified.";
   for (const reason of ["missing_time", "invalid_date"] as const) {
-    assert.throws(() => buildLiveAssessment(findings({ unresolvedDeadlines: [{ tenderEvidence: quote, reason }] }), quote, DEMO_COMPANY, "en"), /inconsistent/);
+    const result = buildLiveAssessment(findings({ unresolvedDeadlines: [{ tenderEvidence: quote, reason }] }), quote, DEMO_COMPANY, "en");
+    assert.equal(result.actions[0].title, "Clarify the deadline");
+    assert.ok(result.actions[0].description.includes(quote));
+    assert.deepEqual(result.deadlines, []);
+    assert.deepEqual(result.alerts, []);
+    assert.equal(result.overallRisk, "unknown");
   }
   assert.throws(() => buildLiveAssessment(findings({ unresolvedDeadlines: [{ tenderEvidence: "Invented date", reason: "ambiguous" }] }), quote, DEMO_COMPANY, "en"), /Ungrounded finding evidence/);
 });

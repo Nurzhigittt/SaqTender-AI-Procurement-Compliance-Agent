@@ -30,25 +30,28 @@ function requireExactQuote(quote: string, tenderText: string): void {
   if (!quote.trim() || !tenderText.includes(quote)) throw new Error("Ungrounded finding evidence");
 }
 
-function validateUnresolvedDeadline(item: LiveFindings["unresolvedDeadlines"][number], tenderText: string): void {
+function resolveUnresolvedDeadlineReason(item: LiveFindings["unresolvedDeadlines"][number], tenderText: string): LiveFindings["unresolvedDeadlines"][number]["reason"] {
   requireExactQuote(item.tenderEvidence, tenderText);
   const dates = [...new Set(explicitDatesInEvidence(item.tenderEvidence))];
   if (dates.length === 1) throw new Error("Unresolved deadline contains a unique explicit instant");
 
-  // These checks establish only the syntactic reason, never that a passage is a deadline.
-  // The model must identify its meaning and select the exact relevant source passage.
+  // A reason selects clarification wording; it cannot establish a calendar fact.
+  // Keep strict source/instant checks above, but use neutral wording when the
+  // proposed reason is unsupported (e.g. a duration measured from contract signing).
+  // Never guess a more specific reason, invent a timestamp, or drop the passage.
   const day = /\b\d{4}-\d{2}-\d{2}\b/.test(item.tenderEvidence);
   const time = /\b\d{4}-\d{2}-\d{2}[T\s]+\d{2}:\d{2}(?::\d{2})?\b/.test(item.tenderEvidence);
   const completeCandidate = /\b\d{4}-\d{2}-\d{2}[T\s]+\d{2}:\d{2}(?::\d{2})?\s*(?:Asia\/Almaty|Z|(?:UTC\s*)?[+-]\d{2}:\d{2})(?![\w/])/.test(item.tenderEvidence);
   if (item.reason === "missing_timezone" && (!day || !time || completeCandidate || dates.length)) {
-    throw new Error("Unresolved deadline reason is inconsistent with its evidence");
+    return "ambiguous";
   }
   if (item.reason === "missing_time" && (!day || time || dates.length)) {
-    throw new Error("Unresolved deadline reason is inconsistent with its evidence");
+    return "ambiguous";
   }
   if (item.reason === "invalid_date" && (!completeCandidate || dates.length)) {
-    throw new Error("Unresolved deadline reason is inconsistent with its evidence");
+    return "ambiguous";
   }
+  return item.reason;
 }
 
 export function buildLiveAssessment(value: unknown, tenderText: string, profile: CompanyProfile, locale: Locale): Assessment {
@@ -92,12 +95,15 @@ export function buildLiveAssessment(value: unknown, tenderText: string, profile:
     }
     return requirement;
   });
-  findings.unresolvedDeadlines.forEach(item => validateUnresolvedDeadline(item, tenderText));
+  const unresolvedDeadlines = findings.unresolvedDeadlines.map(item => ({
+    ...item,
+    reason: resolveUnresolvedDeadlineReason(item, tenderText),
+  }));
 
   const missing = requirements.filter(item => item.status === "missing").length;
   const atRisk = requirements.filter(item => item.status === "at_risk").length;
   const unknown = requirements.filter(item => item.status === "unknown").length;
-  const unresolved = findings.unresolvedDeadlines.length;
+  const unresolved = unresolvedDeadlines.length;
   const overallRisk: Assessment["overallRisk"] = missing ? "high" : atRisk ? "medium" : unknown || unresolved || !requirements.length ? "unknown" : "low";
 
   const actions: Action[] = requirements.flatMap((requirement, index) => {
@@ -127,7 +133,7 @@ export function buildLiveAssessment(value: unknown, tenderText: string, profile:
     invalid_date: tr("Verify the deadline's date and time", "Проверьте дату и время срока"),
     ambiguous: tr("Clarify the deadline", "Уточните срок"),
   };
-  actions.push(...findings.unresolvedDeadlines.map(item => ({
+  actions.push(...unresolvedDeadlines.map(item => ({
     priority: "medium" as const,
     title: deadlineReasons[item.reason],
     description: tr(
