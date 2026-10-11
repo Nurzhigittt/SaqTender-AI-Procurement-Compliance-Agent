@@ -28,6 +28,7 @@ export function Dashboard({ initialMode, initialNow, initialLocale }: { initialM
   const [mode, setMode] = useState<Mode>(initialMode);
   const [tenderText, setTenderText] = useState(getSampleTender(initialLocale));
   const [result, setResult] = useState<ResponseData | null>(null);
+  const [reportRevision, setReportRevision] = useState(0);
   const [analyzedText, setAnalyzedText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +88,7 @@ export function Dashboard({ initialMode, initialNow, initialLocale }: { initialM
     if (!result && (tenderText === SAMPLE_TENDER || tenderText === SAMPLE_TENDER_RU)) setTenderText(getSampleTender(next));
     if (result?.mode === "demo") {
       setResult({ ...result, assessment: analyzeDemoTender(analyzedText, next, analyzedCompany) });
+      setReportRevision(revision => revision + 1);
       setResultLocale(next);
     }
   }
@@ -127,6 +129,7 @@ export function Dashboard({ initialMode, initialNow, initialLocale }: { initialM
       const data = await response.json().catch(() => { throw new AnalysisError(tx("The server response could not be read. Please try again.", "Не удалось прочитать ответ сервера. Попробуйте ещё раз.")); });
       if (!response.ok) throw new AnalysisError(typeof data?.error === "string" ? data.error : tx("The check could not be completed. Please try again.", "Не удалось завершить проверку. Попробуйте ещё раз."));
       if (!data?.assessment || !["demo", "live"].includes(data.mode)) throw new AnalysisError(tx("The report could not be read. Please try again.", "Не удалось прочитать отчёт. Попробуйте ещё раз."));
+      setReportRevision(revision => revision + 1);
       setResult(data); setAnalyzedCompany(submittedCompany); setResultLocale(locale); setAnalyzedText(submittedText); setMode(data.mode); setTab("requirements");
       setActiveNav("assessment");
       requestAnimationFrame(() => { resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); resultsRef.current?.focus({ preventScroll: true }); });
@@ -209,7 +212,7 @@ export function Dashboard({ initialMode, initialNow, initialLocale }: { initialM
 
         <section id="assessment" className="results-section" ref={resultsRef} tabIndex={-1} aria-label={tx("Compliance assessment", "Результат проверки требований")}>
           {reportLanguageMismatch && <div className="stale-notice" role="status"><Info size={18} /><p>{tx("This report was generated in Russian. Run a new check for an English report. Source quotes always keep their original language.", "Этот отчёт сформирован на английском. Повторите проверку, чтобы получить русский отчёт. Цитаты сохраняют язык оригинала.")}</p><button onClick={analyze} disabled={isLoading}><RotateCcw size={14} />{tx("Run again", "Повторить")}</button></div>}
-          {assessment ? <AssessmentResults companyProfile={analyzedCompany} profileChanged={profileChanged} reportLanguageMismatch={reportLanguageMismatch} locale={locale} assessment={assessment} mode={result!.mode} analyzedAt={result!.analyzedAt} stale={stale} tab={tab} setTab={setTab} now={initialNow} onRerun={analyze} isLoading={isLoading} /> : <div className="empty-results"><div className="empty-result-icon"><ScanLine size={27} /><span><Sparkles size={12} /></span></div><div><h2>{tx("A clearer picture starts with one check.", "Одна проверка — понятный план действий.")}</h2><p>{tx("Run the analyzer to see requirements, risks, and what to do next.", "Запустите анализ, чтобы увидеть требования, риски и рекомендации.")}</p></div><div className="empty-steps"><span><Check size={14} /> {tx("Match documents", "Сопоставление документов")}</span><span><Clock3 size={14} /> {tx("Extract deadlines", "Извлечение сроков")}</span><span><Bell size={14} /> {tx("Draft reminders", "Черновики напоминаний")}</span></div></div>}
+          {assessment ? <AssessmentResults key={reportRevision} companyProfile={analyzedCompany} profileChanged={profileChanged} reportLanguageMismatch={reportLanguageMismatch} locale={locale} assessment={assessment} mode={result!.mode} analyzedAt={result!.analyzedAt} stale={stale} tab={tab} setTab={setTab} now={initialNow} onRerun={analyze} isLoading={isLoading} /> : <div className="empty-results"><div className="empty-result-icon"><ScanLine size={27} /><span><Sparkles size={12} /></span></div><div><h2>{tx("A clearer picture starts with one check.", "Одна проверка — понятный план действий.")}</h2><p>{tx("Run the analyzer to see requirements, risks, and what to do next.", "Запустите анализ, чтобы увидеть требования, риски и рекомендации.")}</p></div><div className="empty-steps"><span><Check size={14} /> {tx("Match documents", "Сопоставление документов")}</span><span><Clock3 size={14} /> {tx("Extract deadlines", "Извлечение сроков")}</span><span><Bell size={14} /> {tx("Draft reminders", "Черновики напоминаний")}</span></div></div>}
         </section>
 
         <footer className="page-footer"><span><ShieldCheck size={15} /> SaqTender AI <span className="footer-dot">·</span> {tx("Built for better-informed bids.", "Принимайте решения на основе фактов.")}</span><button onClick={() => helpDialog.current?.showModal()}><BookOpen size={14} /> {tx("Responsible AI & demo guide", "Об ИИ и демонстрации")}</button></footer>

@@ -19,6 +19,7 @@ The initial audience is construction, design and engineering companies participa
 7. Highlights three review priorities: a document finding, a deadline and the next recommended action, with links to the report details.
 8. Downloads the full assessment as a standalone HTML report, including source quotes, mode, draft alerts and limitations. Open the downloaded file to print it or save a PDF through the browser's print dialog.
 9. Provides a five-step **Demo walkthrough / Сценарий показа** in Russian and English: company profile → tender and check → evidence → deadlines and drafts → actions and export.
+10. Collects **team manual review** notes separately from the original assessment and exports both together as HTML or structured JSON.
 
 The application does not send notifications or schedule background jobs. Draft alerts are part of the returned assessment.
 
@@ -33,6 +34,16 @@ Select **Загрузить PDF / TXT / Import PDF / TXT**, choose a file, revie
 - There is no OCR. PDFs without extractable text are rejected; partially empty PDFs identify pages requiring review and block application until the user confirms they checked those pages. Image-only sections within a page that also has text cannot be detected reliably.
 - Password-protected or unreadable PDFs return an actionable error. Text order, table structure, glyphs and invisible text layers may be inaccurate: users must compare requirements, amounts and dates with the original. Source quotes in an assessment refer to the reviewed text, not a verified PDF page coordinate.
 - Imports do not improve the deterministic demo's understanding of arbitrary tenders. Demo findings remain conservative; live-model accuracy across real tenders has not been measured.
+
+## Team manual review
+
+After a completed analysis, open **Ручная проверка / Manual review**. Compare each requirement and deadline with its source quote, then mark it correct, incorrect or uncertain. An incorrect finding requires an explanation before export. Record omitted requirements or deadlines and other concerns in the separate notes fields. The counter tracks reviewed items, not model accuracy.
+
+Start with the fictional sample while the team prepares its own checking process. These notes are not specialist certification, official eligibility verification or an expert-approved training dataset. They do not modify the original model answer or train the model automatically.
+
+**Скачать проверку · HTML / Download review · HTML** produces a readable, printable file; **JSON для разработчиков / JSON for developers** preserves structured data with schema version `saqtender-review-v1`. Both contain the company snapshot, original assessment, source quotes, review notes and timestamps. They are not anonymized. The full tender text is not included; retain the original source separately for later comparison.
+
+Notes remain in the current browser tab and are never sent to the server. They survive switching report tabs, but are reset for a new successful analysis or regenerated demo-language report and are lost on page reload. Download before those actions. Editing the tender or company profile makes the report stale and disables review edits and downloads until the inputs are restored or a new analysis completes. A failed analysis keeps the previous notes.
 
 ## Interface languages
 
@@ -94,7 +105,8 @@ npm test
 ## Verification
 
 - `npm install` and the optimized production build complete successfully.
-- `npm test`: 110 tests pass, covering PDF/TXT extraction and import limits, profile input and evidence, calendar comparisons, localization, error handling, HTML export, the benchmark grader and the real Agents SDK with intercepted offline provider transport. Checks also cover server-generated summaries/actions, exact opposing clauses including long quotes, incomplete-calendar findings, and separate presence/validity guidance for expired, missing, renewed and same-day records. A present-but-expired record incorrectly classified as missing still rejects. Provider requests enforce the required next tool, including correction and recalculation. Deadline display titles may change between tools and final output, while server-resolved timestamps and exact source quotes must match. These are technical regression checks, not a measured accuracy score on real tenders.
+- `npm test`: 129 tests pass, covering PDF/TXT extraction and import limits, profile input and evidence, calendar comparisons, localization, error handling, HTML export, the benchmark grader and the real Agents SDK with intercepted offline provider transport. Checks also cover server-generated summaries/actions, exact opposing clauses including long quotes, incomplete-calendar findings, and separate presence/validity guidance for expired, missing, renewed and same-day records. A present-but-expired record incorrectly classified as missing still rejects. Provider requests enforce the required next tool, including correction and recalculation. Deadline display titles may change between tools and final output, while server-resolved timestamps and exact source quotes must match. These are technical regression checks, not a measured accuracy score on real tenders.
+- Team review regression tests cover validation, detached snapshots, note requirements, escaping and original-report preservation. Local browser checks verified both downloads, required-note focus, tab persistence, stale-report locking and reset on a new analysis.
 - Browser checks cover sample analysis, all report tabs, expanded evidence, edited-text behavior, validation errors, mobile widths (320px and 390px), and 200% zoom.
 - The public deployment was rechecked on 25 September 2026 in Demo Mode: the sample API request returned HTTP 200 with four requirements, two deadlines and six draft reminders. Earlier production browser checks covered public access, report tabs, source evidence and a 390px mobile viewport.
 - **One real Live AI analysis was verified on 10 October 2026 at 17:38 Asia/Almaty**, on deployed code `773595c`. The public site's Russian sample produced four grounded requirements, the missing experience-document finding, two correct deadlines (26 September at 18:00 and 29 September at 10:00, Asia/Almaty), and six deterministic draft reminders. Browser checks confirmed the AI-result label, exact source quotes and a downloaded HTML report. This validates the end-to-end sample workflow, not general accuracy, repeatability or official eligibility.

@@ -1,15 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { ArrowRight, Bell, CalendarClock, Check, ChevronDown, CircleHelp, Clock3, FileCheck2, Info, ListChecks, Quote, RotateCcw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { DEMO_COMPANY } from "@/lib/demo-data";
 import type { Assessment, CompanyProfile } from "@/lib/types";
 import { translate, translateCompanyEvidence, type Locale } from "@/lib/i18n";
 import { Badge, StatusBadge, formatDate } from "./ui";
 import { ReportActions } from "./report-actions";
+import { ManualAssessmentReview } from "./assessment-review";
+import { createEmptyReview } from "@/lib/assessment-review";
 
 type Props = { assessment: Assessment; mode: "demo" | "live"; analyzedAt: string; stale: boolean; tab: string; setTab: (tab: string) => void; now: string; onRerun: () => void; isLoading: boolean; locale: Locale; reportLanguageMismatch?: boolean; companyProfile?: CompanyProfile; profileChanged?: boolean };
 
 export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, setTab, now, onRerun, isLoading, locale, reportLanguageMismatch = false, companyProfile = DEMO_COMPANY, profileChanged = false }: Props) {
+  const [review, setReview] = useState(() => createEmptyReview(assessment));
   const tx = (en: string, ru: string) => translate(locale, en, ru);
   const sourceEvidence = [
     ...assessment.requirements.flatMap(r => [
@@ -24,6 +28,7 @@ export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, se
     { id: "actions", label: tx("Next actions", "Действия"), count: assessment.actions.length, icon: FileCheck2 },
     { id: "alerts", label: tx("Draft alerts", "Напоминания"), count: assessment.alerts.length, icon: Bell },
     { id: "evidence", label: tx("Source evidence", "Источники"), count: null, icon: Quote },
+    { id: "review", label: tx("Manual review", "Ручная проверка"), count: null, icon: FileCheck2 },
   ];
   const counts = { met: 0, missing: 0, at_risk: 0, unknown: 0 };
   const statusLabels = { met: tx("met", "выполнено"), missing: tx("missing", "отсутствует"), at_risk: tx("at risk", "с риском"), unknown: tx("unknown", "нет данных") };
@@ -109,6 +114,7 @@ export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, se
         {tabs.map(({ id, label, count, icon: Icon }, index) => <button key={id} id={`tab-${id}`} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} tabIndex={tab === id ? 0 : -1} className={tab === id ? "selected" : ""} onClick={() => setTab(id)} onKeyDown={e => { let next = index; if (e.key === "ArrowRight") next = (index + 1) % tabs.length; else if (e.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length; else if (e.key === "Home") next = 0; else if (e.key === "End") next = tabs.length - 1; else return; e.preventDefault(); setTab(tabs[next].id); document.getElementById(`tab-${tabs[next].id}`)?.focus(); }}><Icon size={16} /><span>{label}</span>{count !== null && <span className="tab-count">{count}</span>}</button>)}
       </div>
       <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="tab-content" tabIndex={0}>
+        {tab === "review" && <ManualAssessmentReview assessment={assessment} companyProfile={companyProfile} mode={mode} analyzedAt={analyzedAt} locale={locale} review={review} onChange={setReview} disabled={stale || reportLanguageMismatch || isLoading} />}
         {tab === "requirements" && <>
           <div className="tab-description"><p>{tx("Requirements matrix", "Матрица требований")} <span>{tx("Each finding is linked to the provided tender.", "Каждый вывод подкреплён текстом тендера.")}</span></p><span className="expand-hint">{tx("Expand a row to inspect evidence", "Раскройте строку, чтобы увидеть обоснование")} <ChevronDown size={13} /></span></div>
           <div className="requirements-header"><span>{tx("TENDER REQUIREMENT", "ТРЕБОВАНИЕ ТЕНДЕРА")}</span><span>{tx("COMPANY EVIDENCE", "ДАННЫЕ КОМПАНИИ")}</span><span>{tx("STATUS", "СТАТУС")}</span><span /></div>
