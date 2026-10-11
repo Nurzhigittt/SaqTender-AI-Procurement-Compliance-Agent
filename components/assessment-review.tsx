@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ClipboardCheck, Download, Info } from "lucide-react";
 import { createReviewJson, reviewFilename, summarizeReview, type AssessmentReview, type ReviewEntry, type ReviewPacketInput } from "@/lib/assessment-review";
 import { createReviewHtml } from "@/lib/review-report";
@@ -11,6 +11,7 @@ import styles from "./assessment-review.module.css";
 type Props = Omit<ReviewPacketInput, "reviewedAt"> & { disabled: boolean; onChange: (review: AssessmentReview) => void };
 
 export function ManualAssessmentReview({ assessment, companyProfile, mode, analyzedAt, locale, review, disabled, onChange }: Props) {
+  const id = useId();
   const [error, setError] = useState(false);
   const tx = (en: string, ru: string) => translate(locale, en, ru);
   const counts = summarizeReview(review);
@@ -41,7 +42,7 @@ export function ManualAssessmentReview({ assessment, companyProfile, mode, analy
       setError(true);
       const kind = review.requirements.some(item => item.verdict === "incorrect" && !item.note.trim()) ? "requirements" : "deadlines";
       const index = review[kind].findIndex(item => item.verdict === "incorrect" && !item.note.trim());
-      if (index >= 0) document.getElementById(`review-note-${kind}-${index}`)?.focus();
+      if (index >= 0) document.getElementById(`${id}-review-note-${kind}-${index}`)?.focus();
     } finally {
       link?.remove();
       if (url) { const downloadUrl = url; window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000); }
@@ -56,7 +57,7 @@ export function ManualAssessmentReview({ assessment, companyProfile, mode, analy
         {verdicts.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select></label>
       <label>{tx("Explanation or correction", "Пояснение или исправление")}{entry.verdict === "incorrect" && <span> · {tx("required", "обязательно")}</span>}
-        <textarea id={`review-note-${kind}-${index}`} aria-label={`${tx("Comment", "Комментарий")}: ${label}`} value={entry.note} maxLength={2000} rows={2} required={entry.verdict === "incorrect"} aria-invalid={error && needsNote || undefined} placeholder={tx("What should change? Quote the source if possible.", "Что нужно исправить? По возможности приведите цитату.")} onChange={event => updateEntry(kind, index, { note: event.target.value })} />
+        <textarea id={`${id}-review-note-${kind}-${index}`} aria-label={`${tx("Comment", "Комментарий")}: ${label}`} value={entry.note} maxLength={2000} rows={2} required={entry.verdict === "incorrect"} aria-invalid={error && needsNote || undefined} placeholder={tx("What should change? Quote the source if possible.", "Что нужно исправить? По возможности приведите цитату.")} onChange={event => updateEntry(kind, index, { note: event.target.value })} />
       </label>
     </div>;
   }
@@ -85,9 +86,9 @@ export function ManualAssessmentReview({ assessment, companyProfile, mode, analy
         <label>{tx("What was missed?", "Что пропущено?")}<textarea aria-label={tx("Missing requirements or deadlines", "Пропущенные требования или сроки")} rows={3} maxLength={4000} value={review.omissions} placeholder={tx("Quote a missing requirement or deadline and explain why it matters.", "Приведите цитату с пропущенным требованием или сроком и поясните замечание.")} onChange={event => update({ ...review, omissions: event.target.value })} /></label>
         <label>{tx("Other notes", "Другие замечания")}<textarea aria-label={tx("Other review notes", "Другие замечания к проверке")} rows={2} maxLength={4000} value={review.notes} placeholder={tx("For example, an unsupported recommendation or misleading summary.", "Например, лишняя рекомендация или неточная формулировка в итогах.")} onChange={event => update({ ...review, notes: event.target.value })} /></label>
       </div>
-      <div className={styles.downloads}><button type="button" onClick={() => download("html")} disabled={!hasFeedback}><Download size={15} />{tx("Download review · HTML", "Скачать проверку · HTML")}</button><button type="button" className={styles.secondary} onClick={() => download("json")} disabled={!hasFeedback}>{tx("JSON for developers", "JSON для разработчиков")}</button></div>
+      <div className={styles.downloads}><button type="button" onClick={() => download("html")} disabled={!hasFeedback}><Download size={15} />{tx("Download review · HTML", "Скачать проверку · HTML")}</button><button type="button" className={styles.secondary} onClick={() => download("json")} disabled={!hasFeedback}>{tx("Save to continue · JSON", "Сохранить для продолжения · JSON")}</button></div>
     </fieldset>
     {error && <p className={styles.error} role="alert">{tx("Could not export. Add an explanation to every item marked as incorrect, then try again.", "Не удалось скачать. Добавьте пояснение к каждой отметке «Есть ошибка» и повторите попытку.")}</p>}
-    <p className={styles.storage}>{tx("Notes stay in this tab and are not sent to the server. Download them before reloading, changing the report language, or running another analysis. The file includes the analyzed company profile, source quotes, original report and your notes; review it before sharing. HTML opens for reading and printing.", "Замечания остаются в этой вкладке и не отправляются на сервер. Скачайте их до обновления страницы, смены языка отчёта или нового анализа. Файл содержит профиль компании, цитаты, исходный отчёт и ваши заметки — проверьте его перед передачей. HTML можно открыть для чтения и печати.")}</p>
+    <p className={styles.storage}>{tx("Notes stay in this tab and are not sent to the server. Save JSON before reloading, changing the report language, or running another analysis. Use Open saved review at the top of the page to continue later. The file includes the analyzed company profile, source quotes, original report and your notes; review it before sharing. HTML opens for reading and printing.", "Замечания остаются в этой вкладке и не отправляются на сервер. Сохраните JSON до обновления страницы, смены языка отчёта или нового анализа. Чтобы продолжить позже, нажмите «Открыть проверку» вверху страницы. Файл содержит профиль компании, цитаты, исходный отчёт и ваши заметки — проверьте его перед передачей. HTML можно открыть для чтения и печати.")}</p>
   </section>;
 }
