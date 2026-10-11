@@ -7,6 +7,7 @@ import { summarizeReview } from "@/lib/assessment-review";
 import { parseReviewFile, REVIEW_FILE_MAX_BYTES, ReviewImportError } from "@/lib/review-import";
 import { translate, type Locale } from "@/lib/i18n";
 import { ManualAssessmentReview } from "./assessment-review";
+import { ReviewComparison } from "./review-comparison";
 import { formatDate } from "./ui";
 import styles from "./saved-review.module.css";
 
@@ -25,9 +26,11 @@ export function SavedReview({ locale, disabled }: { locale: Locale; disabled: bo
   const [preview, setPreview] = useState<SavedFile | null>(null);
   const [opened, setOpened] = useState<SavedFile | null>(null);
   const [revision, setRevision] = useState(0);
+  const [active, setActive] = useState(false);
   const tx = (en: string, ru: string) => translate(locale, en, ru);
 
   function close() {
+    setActive(false);
     generation.current += 1;
     setBusy(false);
     setPreview(null);
@@ -66,7 +69,7 @@ export function SavedReview({ locale, disabled }: { locale: Locale; disabled: bo
   };
 
   return <>
-    <button ref={launcher} type="button" className={styles.launcher} disabled={disabled} onClick={() => dialog.current?.showModal()}><FolderOpen size={15} />{opened ? tx("Continue saved review", "Продолжить проверку") : tx("Open saved review", "Открыть проверку")}</button>
+    <button ref={launcher} type="button" className={styles.launcher} disabled={disabled} onClick={() => { setActive(true); dialog.current?.showModal(); }}><FolderOpen size={15} />{opened ? tx("Continue saved review", "Продолжить проверку") : tx("Open saved review", "Открыть проверку")}</button>
     <dialog ref={dialog} className={styles.dialog} aria-labelledby={`${id}-title`} onCancel={event => { event.preventDefault(); close(); }}>
       <div className={styles.content}>
         <header className={styles.header}><div><span className={styles.kicker}>{tx("SAVED REVIEW", "СОХРАНЁННАЯ ПРОВЕРКА")}</span><h2 ref={heading} tabIndex={-1} id={`${id}-title`}>{tx("Continue with your team’s notes", "Продолжите с замечаниями команды")}</h2></div><button type="button" className={styles.close} aria-label={tx("Close saved review", "Закрыть сохранённую проверку")} onClick={close}><X size={20} /></button></header>
@@ -82,6 +85,7 @@ export function SavedReview({ locale, disabled }: { locale: Locale; disabled: bo
           </div>
           {opened && <div lang={opened.packet.locale}>
             <div className={styles.archive} lang={locale}><span className={styles.kicker}>{tx("FROM A FILE · NOT A NEW ANALYSIS", "ИЗ ФАЙЛА · БЕЗ НОВОГО АНАЛИЗА")}</span><h3>{opened.packet.companyProfile.name}</h3><p>{opened.name}</p><dl><div><dt>{tx("Original analysis", "Исходный анализ")}</dt><dd>{formatDate(opened.packet.analyzedAt, true, locale)} · {tx("Almaty", "Алматы")}</dd></div><div><dt>{tx("Snapshot saved in file", "Снимок замечаний в файле")}</dt><dd>{formatDate(opened.packet.reviewedAt, true, locale)} · {tx("Almaty", "Алматы")}</dd></div><div><dt>{tx("Mode stated in file", "Режим, указанный в файле")}</dt><dd>{opened.packet.mode === "demo" ? tx("Demo", "Демо") : tx("Live AI", "Онлайн-ИИ")}</dd></div><div><dt>{tx("Report language", "Язык отчёта")}</dt><dd>{opened.packet.locale.toUpperCase()}</dd></div></dl><p>{tx("This is a saved snapshot, not a current check. File authenticity is unverified. Compare it with the original tender and documents; source quotes alone do not show the full context.", "Это сохранённый снимок, а не актуальная проверка. Подлинность файла не подтверждена. Сверяйте его с оригиналами тендера и документов: цитаты не передают весь контекст.")}</p><details><summary>{tx("Original assessment summary", "Итоги исходного анализа")}</summary><p lang={opened.packet.locale}>{opened.packet.assessment.summary}</p><p lang={opened.packet.locale}>{opened.packet.assessment.disclaimer}</p></details></div>
+            <ReviewComparison key={`comparison-${revision}`} base={opened.packet} sourceName={opened.name} locale={locale} active={active} />
             <ManualAssessmentReview key={revision} {...opened.packet} disabled={false} onChange={review => setOpened(current => current ? { ...current, packet: { ...current.packet, review } } : current)} />
           </div>}
         </div>
