@@ -19,7 +19,7 @@
 .fields label, .notes label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: #3f5965; font-weight: 600; min-width: 0; }
 .fields label > span { display: contents; color: #a35a32; }
 .fields select, .fields textarea, .notes textarea { width: 100%; min-width: 0; border: 1px solid #cdd9df; border-radius: 7px; background: #fff; color: #243e49; font: inherit; font-weight: 400; line-height: 1.6; padding: 10px 12px; }
-.fields textarea, .notes textarea { resize: vertical; min-height: 78px; }
+.fields textarea, .notes textarea { resize: vertical; height: auto; min-height: 78px; }
 .fields textarea::placeholder, .notes textarea::placeholder { color: #87959b; }
 .fields select:focus-visible, .fields textarea:focus-visible, .notes textarea:focus-visible, .downloads button:focus-visible { outline: 3px solid #92c7ba; outline-offset: 2px; }
 .fields textarea[aria-invalid="true"] { border-color: #c57568; }
