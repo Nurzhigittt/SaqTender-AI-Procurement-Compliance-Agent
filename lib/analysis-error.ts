@@ -109,6 +109,7 @@ function errorChain(cause: unknown): object[] {
 const ANALYSIS_STAGES = new Set<AnalysisStage>(["profile_pending", "profile_read", "dates_checked", "alerts_created", "final_received"]);
 const CHECK_REASONS = new Map([
   ["Invalid tender source reference", "source_reference_invalid"],
+  ["Too many unresolved deadline findings", "unresolved_deadline_limit"],
   ["Ungrounded deadline evidence", "deadline_quote_mismatch"],
   ["Deadline date is not grounded in its evidence", "deadline_date_mismatch"],
   ["Deadline evidence must contain exactly one explicit instant", "deadline_source_ambiguous"],

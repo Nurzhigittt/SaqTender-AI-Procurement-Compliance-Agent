@@ -134,8 +134,8 @@ export function buildLiveAssessment(value: unknown, tenderText: string, profile:
     priority: "medium" as const,
     title: deadlineReasons[item.reason],
     description: tr(
-      `Confirm this passage against the complete tender before creating a reminder. No exact deadline or reminder was created from it: «${excerpt(item.tenderEvidence)}»`,
-      `Уточните этот фрагмент по полной документации тендера перед созданием напоминания. Точный срок и напоминание по нему не созданы: «${excerpt(item.tenderEvidence)}»`,
+      `Compare this selected passage with the complete tender: it does not by itself establish one supported exact deadline. No reminder was created from this passage: «${excerpt(item.tenderEvidence)}»`,
+      `Сопоставьте этот фрагмент с полной документацией: сам по себе он не задаёт однозначный точный срок в поддерживаемом формате. Напоминание по этому фрагменту не создано: «${excerpt(item.tenderEvidence)}»`,
     ),
   })));
 

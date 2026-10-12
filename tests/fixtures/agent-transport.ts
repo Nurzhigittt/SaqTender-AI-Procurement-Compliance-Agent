@@ -19,6 +19,27 @@ async function main() {
   const locale = scenario === "russian" || validityScenario || wrappedSourceScenario || mixedDeadlineScenario ? "ru" : "en";
   const calendarFeedbackScenario = ["calendar-feedback-recovery", "calendar-feedback-repeated", "calendar-feedback-bypass"].includes(scenario);
   const recovery = scenario === "calendar-feedback-recovery";
+  const retentionScenario = ["calendar-mixed-relative", "calendar-retain-relative", "calendar-deduplicate-unresolved", "calendar-empty-recheck-retains", "calendar-forged-relative-date", "calendar-unresolved-overflow", "calendar-failed-mixed-atomic", "calendar-missing-timezone-retained"].includes(scenario);
+  const atomicCalendarScenario = scenario === "calendar-failed-mixed-atomic";
+  const recheckRetentionScenario = scenario === "calendar-empty-recheck-retains";
+  const multipleInstantQuote = "Application deadline: 2026-11-10 10:00 Asia/Almaty.\nAlternative deadline: 2026-11-11 10:00 Asia/Almaty.";
+  const incompleteTimezoneQuote = "Application deadline: 2026-11-10 10:00.";
+  const retainedRelativeQuotes = [
+    "Performance deadline: 120 calendar days from contract signing.",
+    "Completion deadline: January 2027.",
+    "Warranty deadline: 18 months after acceptance.",
+  ];
+  const exactRetentionQuote = "Application deadline: 2026-11-10 10:00 Asia/Almaty.";
+  const retentionQuotes = scenario === "calendar-unresolved-overflow"
+    ? Array.from({ length: 31 }, (_, index) => `Milestone ${index + 1}: ${index + 1} days after contract signing.`)
+    : ["calendar-deduplicate-unresolved", "calendar-missing-timezone-retained"].includes(scenario) ? [incompleteTimezoneQuote]
+      : scenario === "calendar-retain-relative" ? retainedRelativeQuotes
+        : scenario === "calendar-mixed-relative" ? [retainedRelativeQuotes[0], exactRetentionQuote]
+          : atomicCalendarScenario ? [retainedRelativeQuotes[0], multipleInstantQuote]
+            : [retainedRelativeQuotes[0]];
+  const initialRetentionQuotes = scenario === "calendar-unresolved-overflow" ? retentionQuotes.slice(0, 20) : retentionQuotes;
+  const expectedRetainedQuotes = atomicCalendarScenario ? []
+    : scenario === "calendar-mixed-relative" ? [retainedRelativeQuotes[0]] : initialRetentionQuotes;
   const conflictScenario = ["conflicting-clauses", "fabricated-conflicting-evidence"].includes(scenario);
   const conflictingClauses = [
     "Section 1: Evidence of completed school construction contracts is mandatory.",
@@ -31,13 +52,15 @@ async function main() {
   const wrappedRelativeDeadline = "Срок выполнения работ: 120 календарных дней\nс даты подписания договора, январь 2026 года.";
   const mixedRelativeClause = "Работы выполняются в течение 120 календарных дней с даты подписания договора";
   const mixedAbsoluteTimestamp = "2026-11-10 10:00 Asia/Almaty.";
-  const tenderText = mixedDeadlineScenario
+  const tenderText = retentionScenario
+    ? `FICTIONAL EVALUATION NOTICE.\n${retentionQuotes.join("\n")}`
+    : mixedDeadlineScenario
     ? `ВЫМЫШЛЕННЫЙ ПРОВЕРОЧНЫЙ ПРИМЕР.\n${mixedRelativeClause}, крайний срок подачи заявки ${mixedAbsoluteTimestamp}`
     : wrappedSourceScenario
     ? `ВЫМЫШЛЕННЫЙ ПРОВЕРОЧНЫЙ ПРИМЕР.\n${wrappedLicense}\n${wrappedExemption}\n${wrappedRelativeDeadline}`
     : scenario === "missing-timezone-quote" ? SAMPLE_TENDER.replace("Application deadline: 2026-09-29 10:00 Asia/Almaty.", "Application deadline: 2026-09-29 10:00.")
     : calendarFeedbackScenario
-    ? "FICTIONAL EVALUATION NOTICE. Application deadline: 2026-11-10 10:00. The timezone is not specified."
+    ? `FICTIONAL EVALUATION NOTICE.\n${multipleInstantQuote}`
     : validityScenario ? `ВЫМЫШЛЕННЫЙ ПРОВЕРОЧНЫЙ ПРИМЕР. Не официальный тендер.\n${validityClause}\n${validityDeadlineClause}`
       : conflictScenario ? `FICTIONAL EVALUATION NOTICE.\n${conflictingClauses.join("\n")}\nNo precedence between these sections is specified.` : SAMPLE_TENDER;
   const profile = resolveCompanyProfile(scenario.startsWith("custom-profile") ? {
@@ -92,7 +115,7 @@ async function main() {
   if (recovery) {
     finalOutput.requirements = [];
     finalOutput.deadlines = [];
-    finalOutput.unresolvedDeadlines = [{ tenderEvidence: "Application deadline: 2026-11-10 10:00.", reason: "missing_timezone" }];
+    finalOutput.unresolvedDeadlines = [{ tenderEvidence: multipleInstantQuote, reason: "ambiguous" }];
   }
   if (conflictScenario) {
     finalOutput.requirements = [{
@@ -137,6 +160,14 @@ async function main() {
     finalOutput.requirements = [];
     finalOutput.deadlines = [{ title: "Крайний срок подачи заявки", date: "2026-11-10T05:00:00.000Z", tenderEvidence: mixedAbsoluteTimestamp }];
     finalOutput.unresolvedDeadlines = [{ tenderEvidence: mixedRelativeClause, reason: "ambiguous" }];
+  }
+  if (retentionScenario) {
+    finalOutput.requirements = [];
+    finalOutput.deadlines = scenario === "calendar-mixed-relative"
+      ? [{ title: "Application deadline", date: "2026-11-10T05:00:00.000Z", tenderEvidence: exactRetentionQuote }] : [];
+    finalOutput.unresolvedDeadlines = scenario === "calendar-deduplicate-unresolved"
+      ? [{ tenderEvidence: incompleteTimezoneQuote, reason: "missing_timezone" }]
+      : scenario === "calendar-unresolved-overflow" ? retentionQuotes.slice(20).map(tenderEvidence => ({ tenderEvidence, reason: "ambiguous" as const })) : [];
   }
   // The model selects ranges. The server, not this simulated model, supplies the
   // original quote, including PDF line breaks and punctuation outside a substring.
@@ -243,8 +274,12 @@ async function main() {
       assert.deepEqual(requestBody.tool_choice, { type: "function", name: "getCompanyProfile" });
       if (scenario === "russian") assert.match(String(requestBody.instructions), /Return concise plain Russian/);
     } else {
-      const retryingCalendar = calendarFeedbackScenario || ["ambiguous-date-quote", "missing-timezone-quote"].includes(scenario);
-      const expectedChoice = requests.length === 2 ? "checkDocumentDates"
+      const retryingCalendar = calendarFeedbackScenario || scenario === "ambiguous-date-quote";
+      const expectedChoice = retentionScenario
+        ? requests.length === 2 ? "checkDocumentDates"
+          : requests.length === 3 ? atomicCalendarScenario ? "checkDocumentDates" : "createAlerts"
+            : requests.length === 4 && atomicCalendarScenario || requests.length === 5 && recheckRetentionScenario ? "createAlerts" : "auto"
+        : requests.length === 2 ? "checkDocumentDates"
         : requests.length === 3 ? retryingCalendar ? "checkDocumentDates" : "createAlerts"
           : requests.length === 4 && recovery ? "createAlerts"
             : requests.length === 5 && scenario === "recheck-after-alert" ? "createAlerts" : "auto";
@@ -287,11 +322,23 @@ async function main() {
     }
     const toolReferenceDeadlines = toolDeadlines.map(modelDeadline);
     const calendarCandidates = calendarFeedbackScenario
-      ? [{ title: "Application deadline", sourceReference: refForQuote("Application deadline: 2026-11-10 10:00.") }]
+      ? [{ title: "Conflicting deadline candidates", sourceReference: refForQuote(multipleInstantQuote) }]
       : toolReferenceDeadlines.map(({ title, sourceReference }) => ({ title, sourceReference }));
     if (scenario === "model-authored-tool-quote") Object.assign(calendarCandidates[0], { tenderEvidence: toolDeadlines[0].tenderEvidence });
 
-    const output = scenario === "missing-profile" ? finalMessage()
+    const retentionCandidates = retentionScenario ? initialRetentionQuotes.map((quote, index) => ({ title: `Candidate ${index + 1}`, sourceReference: refForQuote(quote) })) : [];
+    const retentionAlerts = scenario === "calendar-forged-relative-date"
+      ? [{ title: "Invented relative completion", date: "2027-01-31T05:00:00.000Z", sourceReference: refForQuote(retainedRelativeQuotes[0]) }]
+      : finalOutput.deadlines.map(modelDeadline);
+    const retentionOutput = () => requests.length === 1 ? functionCall("getCompanyProfile", {}, 1)
+      : requests.length === 2 ? functionCall("checkDocumentDates", { deadlines: retentionCandidates }, 2)
+        : requests.length === 3 ? functionCall(atomicCalendarScenario ? "checkDocumentDates" : "createAlerts", { deadlines: atomicCalendarScenario ? [] : retentionAlerts }, 3)
+          : requests.length === 4 && atomicCalendarScenario ? functionCall("createAlerts", { deadlines: [] }, 4)
+            : requests.length === 4 && recheckRetentionScenario ? functionCall("checkDocumentDates", { deadlines: [] }, 4)
+              : requests.length === 5 && recheckRetentionScenario ? functionCall("createAlerts", { deadlines: [] }, 5)
+                : finalMessage();
+    const output = retentionScenario ? retentionOutput()
+      : scenario === "missing-profile" ? finalMessage()
       : requests.length === 1 ? functionCall("getCompanyProfile", {}, 1)
         : requests.length === 2 ? functionCall(scenario === "missing-date-check" ? "createAlerts" : "checkDocumentDates", {
           deadlines: scenario === "wrong-date-input" ? [] : scenario === "missing-date-check" ? toolReferenceDeadlines
@@ -334,6 +381,61 @@ async function main() {
       assert.equal(JSON.stringify(body).includes("FICTIONAL DEMO TENDER"), false);
       assert.equal("assessment" in body, false);
       assert.equal(response.headers.get("cache-control"), "no-store");
+    } else if (["missing-timezone-quote", "calendar-forged-relative-date", "calendar-unresolved-overflow"].includes(scenario)) {
+      const overflow = scenario === "calendar-unresolved-overflow";
+      await assert.rejects(analyzeLiveTender(tenderText, controller.signal, locale, profile), (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.equal((error as Error & { stage?: string }).stage, overflow ? "final_received" : "dates_checked");
+        assert.ok(error.cause instanceof Error);
+        assert.equal(error.cause.message, overflow ? "Too many unresolved deadline findings" : "Failed to run function tools: Error: Deadline date is not grounded in its evidence",
+          "The rejection must concern the unsupported date or retained-findings cap, not a fixture or unrelated transport failure");
+        return true;
+      });
+      assert.equal(requests.length, overflow ? 4 : 3);
+      if (!overflow) {
+        const calendar = (requests[2].input as Array<{ type?: string; call_id?: string; output?: string }>).find(item => item.type === "function_call_output" && item.call_id === "call_2");
+        assert.equal(typeof calendar?.output, "string");
+        const result = JSON.parse(calendar!.output!);
+        assert.equal(result.unresolvedDeadlines.length, 1, "Zero-instant candidates must first be retained for clarification, not retried or silently dropped");
+        assert.equal(result.unresolvedDeadlines[0].reason, "ambiguous");
+      }
+    } else if (retentionScenario) {
+      const assessment = await analyzeLiveTender(tenderText, controller.signal, locale, profile);
+      assert.equal(requests.length, atomicCalendarScenario ? 5 : recheckRetentionScenario ? 6 : 4);
+      assert.equal(assessment.officialEligibilityVerified, false);
+      assert.equal(assessment.disclaimer, getDisclaimer(locale, profile.isDemo));
+      assert.equal(assessment.overallRisk, "unknown");
+      assert.deepEqual(assessment.requirements, []);
+      assert.deepEqual(assessment.deadlines, expectedOutput.deadlines);
+      assert.deepEqual(assessment.alerts, createDraftAlerts(expectedOutput.deadlines, locale));
+      assert.equal(assessment.actions.length, expectedRetainedQuotes.length,
+        "Server-retained clarification passages must survive model omission and appear exactly once");
+      for (const quote of expectedRetainedQuotes) {
+        const exactQuote = quoteForRef(refForQuote(quote));
+        const actions = assessment.actions.filter(item => item.description.includes(exactQuote));
+        assert.equal(actions.length, 1, "Each retained original passage needs exactly one clarification action");
+        assert.equal(actions[0].title, "Clarify the deadline", "A retained server classification stays neutral even if a duplicate model item requests a specific reason");
+      }
+      const resultIndex = atomicCalendarScenario ? 3 : 2;
+      const calendar = (requests[resultIndex].input as Array<{ type?: string; call_id?: string; output?: string }>).find(item => item.type === "function_call_output" && item.call_id === (atomicCalendarScenario ? "call_3" : "call_2"));
+      assert.equal(typeof calendar?.output, "string");
+      const result = JSON.parse(calendar!.output!);
+      assert.deepEqual(result.deadlines.map(({ date, sourceReference }: { date: string; sourceReference: SourceReference }) => ({ date, sourceReference })),
+        expectedOutput.deadlines.map(item => ({ date: item.date, sourceReference: refForQuote(item.tenderEvidence) })),
+        "Filtering earlier relative candidates must preserve the later exact deadline's matching source reference");
+      assert.deepEqual(result.unresolvedDeadlines, expectedRetainedQuotes.map(quote => ({ sourceReference: refForQuote(quote), reason: "ambiguous" })),
+        "The calendar tool must expose the same clarification references that the server retains");
+      if (recheckRetentionScenario) {
+        const later = (requests[4].input as Array<{ type?: string; call_id?: string; output?: string }>).find(item => item.type === "function_call_output" && item.call_id === "call_4");
+        assert.equal(typeof later?.output, "string");
+        assert.deepEqual(JSON.parse(later!.output!).unresolvedDeadlines, [], "The second check is empty but must not erase earlier retained state");
+      }
+      if (atomicCalendarScenario) {
+        const failed = (requests[2].input as Array<{ type?: string; call_id?: string; output?: string }>).find(item => item.type === "function_call_output" && item.call_id === "call_2");
+        assert.equal(typeof failed?.output, "string");
+        assert.equal(JSON.parse(failed!.output!).code, "deadline_source_ambiguous");
+        assert.deepEqual(assessment.actions, [], "A failed mixed calendar check must not retain a partial zero-instant candidate when the corrected call omits it");
+      }
     } else if (scenario === "expired-present-as-missing") {
       await assert.rejects(analyzeLiveTender(tenderText, controller.signal, locale, profile), (error: unknown) => {
         assert.ok(error instanceof Error);
@@ -343,7 +445,7 @@ async function main() {
         return true;
       });
       assert.equal(requests.length, 4, "The unchanged final-output validator must reject the model's unsupported missing claim");
-    } else if (["missing-profile", "missing-date-check", "wrong-date-input", "wrong-evidence", "wrong-alert-input", "wrong-deadline-date", "wrong-deadline-evidence", "ambiguous-date-quote", "missing-timezone-quote", "calendar-feedback-repeated", "calendar-feedback-bypass", "abort", "provider-error", "custom-profile-old-evidence", "fabricated-conflicting-evidence", "reversed-source-reference", "model-authored-quote", "model-authored-deadline-quote", "model-authored-tool-quote", "unknown-unresolved-reference"].includes(scenario)) {
+    } else if (["missing-profile", "missing-date-check", "wrong-date-input", "wrong-evidence", "wrong-alert-input", "wrong-deadline-date", "wrong-deadline-evidence", "ambiguous-date-quote", "calendar-feedback-repeated", "calendar-feedback-bypass", "abort", "provider-error", "custom-profile-old-evidence", "fabricated-conflicting-evidence", "reversed-source-reference", "model-authored-quote", "model-authored-deadline-quote", "model-authored-tool-quote", "unknown-unresolved-reference"].includes(scenario)) {
       await assert.rejects(analyzeLiveTender(tenderText, controller.signal, locale, profile));
       if (["wrong-evidence", "fabricated-conflicting-evidence", "reversed-source-reference", "model-authored-quote", "model-authored-deadline-quote", "unknown-unresolved-reference"].includes(scenario)) {
         assert.equal(requests.length, 4, "Invalid final references/extra quote fields must be rejected only after the fixture reaches the actual final model response");
@@ -431,7 +533,7 @@ async function main() {
         assert.deepEqual(assessment.requirements, []);
         assert.deepEqual(assessment.alerts, []);
         assert.equal(assessment.actions.length, 1, "A deadline-only tender must not create unrelated company-document advice");
-        assert.match(assessment.actions[0].title, /time\s?zone/i);
+        assert.equal(assessment.actions[0].title, "Clarify the deadline");
         assert.ok(assessment.actions[0].description.includes(expectedOutput.unresolvedDeadlines[0].tenderEvidence));
         assert.equal(/experience|registry|license|financial|expert opinion/i.test(JSON.stringify(assessment.actions)), false);
       } else {
