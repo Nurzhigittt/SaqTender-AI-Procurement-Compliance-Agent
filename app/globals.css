@@ -91,10 +91,6 @@ h1 > span { color: #0b9875; }
 .stat-blue .stat-icon { background: #edf2fa; color: #6b8cbf; }
 .stat-value { display: block; font-size: 33px; line-height: 1.15; font-weight: 600; margin: 9px 0 9px; letter-spacing: -1.2px; font-variant-numeric: tabular-nums; }
 .stat-description { font-size: 10px; color: #7c8a94; }
-.stat-accent { width: 27px; height: 3px; background: #b0dfcf; position: absolute; bottom: 0; left: 18px; border-radius: 3px 3px 0 0; }
-.stat-amber .stat-accent { background: #f0dba5; }
-.stat-red .stat-accent { background: #f1c4bd; }
-.stat-blue .stat-accent { background: #c5d5ed; }
 .input-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 24px; }
 .panel { background: #fff; border: 1px solid #e1e7eb; border-radius: 11px; box-shadow: 0 3px 7px #1c344303; overflow: hidden; }
 .company-panel, .analyzer-panel { padding: 22px; scroll-margin-top: 24px; }

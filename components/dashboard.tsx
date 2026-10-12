@@ -225,5 +225,5 @@ export function Dashboard({ initialMode, initialNow, initialLocale }: { initialM
 }
 
 function StatCard({ title, value, description, Icon, tone }: { title: string; value: number | string; description: string; Icon: typeof FileCheck2; tone: string }) {
-  return <div className={`stat-card stat-${tone}`}><div className="stat-top"><span>{title}</span><span className="stat-icon"><Icon size={18} /></span></div><strong className="stat-value">{value.toString().padStart(typeof value === "number" ? 2 : 1, "0")}</strong><span className="stat-description">{description}</span><div className="stat-accent" /></div>;
+  return <div className={`stat-card stat-${tone}`}><div className="stat-top"><span>{title}</span><span className="stat-icon"><Icon size={18} /></span></div><strong className="stat-value">{value.toString().padStart(typeof value === "number" ? 2 : 1, "0")}</strong><span className="stat-description">{description}</span></div>;
 }
