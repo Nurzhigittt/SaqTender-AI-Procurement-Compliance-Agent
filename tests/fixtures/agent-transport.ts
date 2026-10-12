@@ -4,13 +4,19 @@ import { DEMO_COMPANY, getDisclaimer, resolveCompanyProfile, SAMPLE_TENDER } fro
 import { analyzeDemoTender } from "../../lib/mock-analysis";
 import { createDraftAlerts } from "../../lib/alerts";
 import { getCompanyEvidence } from "../../lib/company-profile";
+import { createTenderFragments } from "../../lib/tender-fragments";
 import type { LiveFindings } from "../../lib/live-findings";
 import type { Assessment } from "../../lib/types";
+
+type SourceReference = { startFragment: number; endFragment: number };
+type QuoteFindings = LiveFindings;
 
 async function main() {
   const scenario = process.argv[2];
   const validityScenario = ["expired-present-document", "expired-present-as-missing", "missing-validity-document", "same-day-validity", "renewed-validity"].includes(scenario);
-  const locale = scenario === "russian" || validityScenario ? "ru" : "en";
+  const wrappedSourceScenario = scenario === "linewrapped-source-references";
+  const mixedDeadlineScenario = scenario === "mixed-relative-absolute-references";
+  const locale = scenario === "russian" || validityScenario || wrappedSourceScenario || mixedDeadlineScenario ? "ru" : "en";
   const calendarFeedbackScenario = ["calendar-feedback-recovery", "calendar-feedback-repeated", "calendar-feedback-bypass"].includes(scenario);
   const recovery = scenario === "calendar-feedback-recovery";
   const conflictScenario = ["conflicting-clauses", "fabricated-conflicting-evidence"].includes(scenario);
@@ -20,7 +26,17 @@ async function main() {
   ];
   const validityClause = "Экспертное заключение должно действовать на дату окончания подачи заявок.";
   const validityDeadlineClause = "Крайний срок подачи заявки: 2026-11-10 10:00 Asia/Almaty.";
-  const tenderText = calendarFeedbackScenario
+  const wrappedLicense = "Участник должен иметь действующую\nстроительную лицензию.";
+  const wrappedExemption = "Требование к опыту работы за последние пять лет не\nпредъявляется.";
+  const wrappedRelativeDeadline = "Срок выполнения работ: 120 календарных дней\nс даты подписания договора, январь 2026 года.";
+  const mixedRelativeClause = "Работы выполняются в течение 120 календарных дней с даты подписания договора";
+  const mixedAbsoluteTimestamp = "2026-11-10 10:00 Asia/Almaty.";
+  const tenderText = mixedDeadlineScenario
+    ? `ВЫМЫШЛЕННЫЙ ПРОВЕРОЧНЫЙ ПРИМЕР.\n${mixedRelativeClause}, крайний срок подачи заявки ${mixedAbsoluteTimestamp}`
+    : wrappedSourceScenario
+    ? `ВЫМЫШЛЕННЫЙ ПРОВЕРОЧНЫЙ ПРИМЕР.\n${wrappedLicense}\n${wrappedExemption}\n${wrappedRelativeDeadline}`
+    : scenario === "missing-timezone-quote" ? SAMPLE_TENDER.replace("Application deadline: 2026-09-29 10:00 Asia/Almaty.", "Application deadline: 2026-09-29 10:00.")
+    : calendarFeedbackScenario
     ? "FICTIONAL EVALUATION NOTICE. Application deadline: 2026-11-10 10:00. The timezone is not specified."
     : validityScenario ? `ВЫМЫШЛЕННЫЙ ПРОВЕРОЧНЫЙ ПРИМЕР. Не официальный тендер.\n${validityClause}\n${validityDeadlineClause}`
       : conflictScenario ? `FICTIONAL EVALUATION NOTICE.\n${conflictingClauses.join("\n")}\nNo precedence between these sections is specified.` : SAMPLE_TENDER;
@@ -39,11 +55,29 @@ async function main() {
   } : DEMO_COMPANY);
   const canonical = analyzeDemoTender(tenderText, locale, profile);
   const originalAssessment = scenario === "custom-profile-old-evidence" ? analyzeDemoTender(tenderText, locale) : canonical;
-  const finalOutput: LiveFindings = {
+  const finalOutput: QuoteFindings = {
     requirements: structuredClone(originalAssessment.requirements).map(item => ({ ...item, clauseState: "unambiguous", conflictingEvidence: null })),
     deadlines: structuredClone(originalAssessment.deadlines),
     unresolvedDeadlines: [],
   };
+  const fragments = createTenderFragments(tenderText);
+  const refForQuote = (quote: string): SourceReference => {
+    const start = tenderText.indexOf(quote);
+    assert.ok(start >= 0, "The fixture source quote must occur exactly in its supplied tender");
+    const end = start + quote.length;
+    const covered = fragments.filter(fragment => fragment.start < end && fragment.end > start);
+    assert.ok(covered.length, "The fixture source quote must overlap numbered fragments");
+    return { startFragment: covered[0].id, endFragment: covered.at(-1)!.id };
+  };
+  const quoteForRef = (reference: SourceReference): string => {
+    const first = fragments.find(fragment => fragment.id === reference.startFragment);
+    const last = fragments.find(fragment => fragment.id === reference.endFragment);
+    assert.ok(first && last && first.start <= last.start);
+    return tenderText.slice(first.start, last.end);
+  };
+  const unknownReference = { startFragment: fragments.length + 100, endFragment: fragments.length + 100 };
+  const referenceForEvidence = (quote: string): SourceReference => tenderText.includes(quote) ? refForQuote(quote) : unknownReference;
+  const modelDeadline = ({ tenderEvidence, ...item }: Assessment["deadlines"][number]) => ({ ...item, sourceReference: referenceForEvidence(tenderEvidence) });
   const requests: Array<Record<string, unknown>> = [];
   const capturedLogs: string[] = [];
   const originalError = console.error;
@@ -89,13 +123,56 @@ async function main() {
     }];
   }
 
+  if (wrappedSourceScenario) {
+    finalOutput.requirements = [{
+      title: "Строительная лицензия", status: "unknown", tenderEvidence: wrappedLicense,
+      companyEvidence: getCompanyEvidence(profile)["construction-license"],
+      explanation: "Запись о лицензии присутствует, но её содержание не проверено.",
+      clauseState: "unambiguous", conflictingEvidence: null,
+    }];
+    finalOutput.deadlines = [];
+    finalOutput.unresolvedDeadlines = [{ tenderEvidence: wrappedRelativeDeadline, reason: "ambiguous" }];
+  }
+  if (mixedDeadlineScenario) {
+    finalOutput.requirements = [];
+    finalOutput.deadlines = [{ title: "Крайний срок подачи заявки", date: "2026-11-10T05:00:00.000Z", tenderEvidence: mixedAbsoluteTimestamp }];
+    finalOutput.unresolvedDeadlines = [{ tenderEvidence: mixedRelativeClause, reason: "ambiguous" }];
+  }
+  // The model selects ranges. The server, not this simulated model, supplies the
+  // original quote, including PDF line breaks and punctuation outside a substring.
+  const expectedOutput: QuoteFindings = {
+    requirements: finalOutput.requirements.map(item => ({
+      ...item,
+      tenderEvidence: tenderText.includes(item.tenderEvidence) ? quoteForRef(refForQuote(item.tenderEvidence)) : item.tenderEvidence,
+      conflictingEvidence: item.conflictingEvidence && tenderText.includes(item.conflictingEvidence) ? quoteForRef(refForQuote(item.conflictingEvidence)) : item.conflictingEvidence,
+    })),
+    deadlines: finalOutput.deadlines.map(item => ({ ...item, tenderEvidence: quoteForRef(refForQuote(item.tenderEvidence)) })),
+    unresolvedDeadlines: finalOutput.unresolvedDeadlines.map(item => ({ ...item, tenderEvidence: quoteForRef(refForQuote(item.tenderEvidence)) })),
+  };
+  const modelOutput = () => {
+    const result = {
+      requirements: finalOutput.requirements.map(({ tenderEvidence, conflictingEvidence, ...item }) => ({
+        ...item,
+        sourceReference: referenceForEvidence(tenderEvidence),
+        conflictingSourceReference: conflictingEvidence === null ? null : referenceForEvidence(conflictingEvidence),
+      })),
+      deadlines: finalOutput.deadlines.map(modelDeadline),
+      unresolvedDeadlines: finalOutput.unresolvedDeadlines.map(({ tenderEvidence, ...item }) => ({ ...item, sourceReference: referenceForEvidence(tenderEvidence) })),
+    };
+    if (scenario === "reversed-source-reference") result.requirements[0].sourceReference = { startFragment: fragments.at(-1)!.id, endFragment: fragments[0].id };
+    if (scenario === "model-authored-quote") Object.assign(result.requirements[0], { tenderEvidence: finalOutput.requirements[0].tenderEvidence });
+    if (scenario === "model-authored-deadline-quote") Object.assign(result.deadlines[0], { tenderEvidence: finalOutput.deadlines[0].tenderEvidence });
+    if (scenario === "unknown-unresolved-reference") result.unresolvedDeadlines.push({ sourceReference: unknownReference, reason: "ambiguous" });
+    return result;
+  };
+
   const functionCall = (name: string, args: unknown, index: number) => ({
     type: "function_call", id: `fc_${index}`, call_id: `call_${index}`, name,
     arguments: JSON.stringify(args), status: "completed",
   });
   const finalMessage = () => ({
     id: "msg_final", type: "message", role: "assistant", status: "completed",
-    content: [{ type: "output_text", text: JSON.stringify(finalOutput), annotations: [] }],
+    content: [{ type: "output_text", text: JSON.stringify(modelOutput()), annotations: [] }],
   });
 
   globalThis.fetch = async (input, init) => {
@@ -121,11 +198,45 @@ async function main() {
         : ["expired-present-document", "expired-present-as-missing"].includes(scenario) ? "expires_before" : "covers_deadline_day");
       assert.equal(expertCheck.statusForValidityRequirement === "met", false, "Calendar coverage alone must never establish compliance");
     }
+    if (requests.length === 1) {
+      const userInput = requestBody.input.find((item: { role?: string }) => item.role === "user");
+      assert.ok(userInput, "The SDK request must contain the tender as user data");
+      const userText = typeof userInput.content === "string" ? userInput.content
+        : userInput.content.map((item: { text?: string }) => item.text ?? "").join("");
+      const sourceInput = JSON.parse(userText);
+      assert.deepEqual(Object.keys(sourceInput), ["sourceFragments"]);
+      assert.deepEqual(sourceInput.sourceFragments, fragments.map(({ id, text }) => ({ id, text })),
+        "The actual provider request must contain only the server's numbered original fragments, with no offsets or raw alternate text");
+      if (wrappedSourceScenario) {
+        const exemptionReference = refForQuote(wrappedExemption);
+        assert.equal(quoteForRef(exemptionReference), wrappedExemption,
+          "The source range must preserve the PDF-wrapped negation, including its original newline");
+      }
+    }
     if (scenario === "normalize-final") {
       const outputSchema = requestBody.text?.format?.schema;
       assert.ok(outputSchema, "The actual provider request must include a structured findings schema");
       assert.deepEqual(Object.keys(outputSchema.properties).sort(), ["deadlines", "requirements", "unresolvedDeadlines"]);
       assert.equal(outputSchema.additionalProperties, false, "The model cannot add standalone summary, risk, actions, alerts or disclaimer fields");
+      for (const [key, expectedKeys] of [
+        ["requirements", ["title", "status", "sourceReference", "conflictingSourceReference", "companyEvidence", "explanation", "clauseState"]],
+        ["deadlines", ["title", "date", "sourceReference"]],
+        ["unresolvedDeadlines", ["sourceReference", "reason"]],
+      ] as const) {
+        const itemSchema = outputSchema.properties[key].items;
+        assert.deepEqual(Object.keys(itemSchema.properties).sort(), [...expectedKeys].sort());
+        assert.equal(itemSchema.additionalProperties, false, "No model-authored tender or conflicting quotes may enter the structured findings");
+        assert.deepEqual(Object.keys(itemSchema.properties.sourceReference.properties).sort(), ["endFragment", "startFragment"]);
+        assert.equal(itemSchema.properties.sourceReference.additionalProperties, false);
+      }
+      for (const [name, expectedKeys] of [
+        ["checkDocumentDates", ["title", "sourceReference"]],
+        ["createAlerts", ["title", "date", "sourceReference"]],
+      ] as const) {
+        const toolSchema = requestBody.tools.find((item: { name?: string }) => item.name === name).parameters.properties.deadlines.items;
+        assert.deepEqual(Object.keys(toolSchema.properties).sort(), [...expectedKeys].sort());
+        assert.equal(toolSchema.additionalProperties, false, "Tool arguments must select source references instead of authoring quotes");
+      }
     }
     if (!profile.isDemo) assert.equal(String(requestBody.instructions).includes(profile.name), false, "Profile data cannot become developer instructions");
     if (requests.length === 1) {
@@ -158,7 +269,7 @@ async function main() {
       } }), { status: quota ? 429 : 401, headers: { "Content-Type": "application/json", "x-should-retry": "false" } });
     }
 
-    const toolDeadlines = structuredClone(canonical.deadlines);
+    const toolDeadlines = mixedDeadlineScenario ? structuredClone(finalOutput.deadlines) : wrappedSourceScenario ? [] : structuredClone(canonical.deadlines);
     if (scenario === "rephrased-deadline-titles") {
       toolDeadlines.forEach(item => { item.title = `${requests.length === 2 ? "Calendar check" : "Draft reminder"}: ${item.title}`; });
     }
@@ -172,16 +283,18 @@ async function main() {
       toolDeadlines[0].tenderEvidence = "Application deadline: 2026-09-29 10:00 Asia/Almaty.\nBid security deadline: 2026-09-26 18:00 Asia/Almaty.";
     }
     if (scenario === "missing-timezone-quote") {
-      toolDeadlines[0].tenderEvidence = "Application deadline: 2026-09-29 10:00";
+      toolDeadlines.unshift({ title: "Application deadline", date: "2026-09-29T05:00:00.000Z", tenderEvidence: "Application deadline: 2026-09-29 10:00." });
     }
+    const toolReferenceDeadlines = toolDeadlines.map(modelDeadline);
     const calendarCandidates = calendarFeedbackScenario
-      ? [{ title: "Application deadline", tenderEvidence: "Application deadline: 2026-11-10 10:00." }]
-      : toolDeadlines.map(({ title, tenderEvidence }) => ({ title, tenderEvidence }));
+      ? [{ title: "Application deadline", sourceReference: refForQuote("Application deadline: 2026-11-10 10:00.") }]
+      : toolReferenceDeadlines.map(({ title, sourceReference }) => ({ title, sourceReference }));
+    if (scenario === "model-authored-tool-quote") Object.assign(calendarCandidates[0], { tenderEvidence: toolDeadlines[0].tenderEvidence });
 
     const output = scenario === "missing-profile" ? finalMessage()
       : requests.length === 1 ? functionCall("getCompanyProfile", {}, 1)
         : requests.length === 2 ? functionCall(scenario === "missing-date-check" ? "createAlerts" : "checkDocumentDates", {
-          deadlines: scenario === "wrong-date-input" ? [] : scenario === "missing-date-check" ? toolDeadlines
+          deadlines: scenario === "wrong-date-input" ? [] : scenario === "missing-date-check" ? toolReferenceDeadlines
             : calendarCandidates,
         }, 2)
         : calendarFeedbackScenario && requests.length === 3 ? functionCall(scenario === "calendar-feedback-bypass" ? "createAlerts" : "checkDocumentDates", {
@@ -189,9 +302,9 @@ async function main() {
         }, 3)
         : recovery && requests.length === 4 ? functionCall("createAlerts", { deadlines: [] }, 4)
         : scenario === "recheck-after-alert" && requests.length === 4 ? functionCall("checkDocumentDates", { deadlines: calendarCandidates }, 4)
-        : scenario === "recheck-after-alert" && requests.length === 5 ? functionCall("createAlerts", { deadlines: toolDeadlines }, 5)
+        : scenario === "recheck-after-alert" && requests.length === 5 ? functionCall("createAlerts", { deadlines: toolReferenceDeadlines }, 5)
         : requests.length === 3 ? functionCall("createAlerts", {
-          deadlines: scenario === "wrong-alert-input" ? [] : toolDeadlines,
+          deadlines: scenario === "wrong-alert-input" ? [] : toolReferenceDeadlines,
         }, 3)
           : finalMessage();
 
@@ -230,8 +343,14 @@ async function main() {
         return true;
       });
       assert.equal(requests.length, 4, "The unchanged final-output validator must reject the model's unsupported missing claim");
-    } else if (["missing-profile", "missing-date-check", "wrong-date-input", "wrong-evidence", "wrong-alert-input", "wrong-deadline-date", "wrong-deadline-evidence", "ambiguous-date-quote", "missing-timezone-quote", "calendar-feedback-repeated", "calendar-feedback-bypass", "abort", "provider-error", "custom-profile-old-evidence", "fabricated-conflicting-evidence"].includes(scenario)) {
+    } else if (["missing-profile", "missing-date-check", "wrong-date-input", "wrong-evidence", "wrong-alert-input", "wrong-deadline-date", "wrong-deadline-evidence", "ambiguous-date-quote", "missing-timezone-quote", "calendar-feedback-repeated", "calendar-feedback-bypass", "abort", "provider-error", "custom-profile-old-evidence", "fabricated-conflicting-evidence", "reversed-source-reference", "model-authored-quote", "model-authored-deadline-quote", "model-authored-tool-quote", "unknown-unresolved-reference"].includes(scenario)) {
       await assert.rejects(analyzeLiveTender(tenderText, controller.signal, locale, profile));
+      if (["wrong-evidence", "fabricated-conflicting-evidence", "reversed-source-reference", "model-authored-quote", "model-authored-deadline-quote", "unknown-unresolved-reference"].includes(scenario)) {
+        assert.equal(requests.length, 4, "Invalid final references/extra quote fields must be rejected only after the fixture reaches the actual final model response");
+      }
+      if (["wrong-deadline-evidence", "model-authored-tool-quote"].includes(scenario)) {
+        assert.equal(requests.length, 2, "Invalid calendar references/extra quote fields must stop before alerts or a final report");
+      }
       if (scenario === "abort") assert.equal(controller.signal.aborted, true);
       if (calendarFeedbackScenario) assert.equal(requests.length, 3, "Repeated ambiguity or bypassing the corrected calendar check must stop the run");
     } else {
@@ -244,19 +363,22 @@ async function main() {
         assessment = (await response.json()).assessment;
       } else assessment = await analyzeLiveTender(tenderText, controller.signal, locale, profile);
       assert.equal(requests.length, recovery ? 5 : scenario === "recheck-after-alert" ? 6 : 4, "Expected required tools and final response, with a bounded correction or recalculation");
-      assert.deepEqual(assessment.alerts, createDraftAlerts(finalOutput.deadlines, locale));
-      if (scenario === "rephrased-deadline-titles") assert.deepEqual(assessment.deadlines, finalOutput.deadlines);
+      assert.deepEqual(assessment.alerts, createDraftAlerts(expectedOutput.deadlines, locale));
+      if (scenario === "rephrased-deadline-titles") assert.deepEqual(assessment.deadlines, expectedOutput.deadlines);
       assert.equal(assessment.disclaimer, getDisclaimer(locale, profile.isDemo));
       assert.equal(assessment.officialEligibilityVerified, false);
       const calendarOutput = (requests[recovery ? 3 : 2].input as Array<{ type?: string; call_id?: string; output?: unknown }>)
         .find(item => item.type === "function_call_output" && item.call_id === (recovery ? "call_3" : "call_2"));
       assert.equal(typeof calendarOutput?.output, "string", "The model must receive the calendar tool's canonical deadline data");
       const resolved = JSON.parse(calendarOutput!.output as string).deadlines;
-      assert.deepEqual(resolved.map((item: { date: string }) => item.date).sort(), recovery || conflictScenario ? []
-        : validityScenario ? ["2026-11-10T05:00:00.000Z"] : ["2026-09-26T13:00:00.000Z", "2026-09-29T05:00:00.000Z"]);
+      assert.deepEqual(resolved.map((item: { date: string }) => item.date).sort(), recovery || conflictScenario || wrappedSourceScenario ? []
+        : validityScenario || mixedDeadlineScenario ? ["2026-11-10T05:00:00.000Z"] : ["2026-09-26T13:00:00.000Z", "2026-09-29T05:00:00.000Z"]);
       assert.deepEqual(assessment.deadlines.map(item => ({ date: item.date, tenderEvidence: item.tenderEvidence })),
-        resolved.map((item: { date: string; tenderEvidence: string }) => ({ date: item.date, tenderEvidence: item.tenderEvidence })),
-        "Final deadlines must preserve the exact server-resolved timestamps and source quotes");
+        resolved.map((item: { date: string; sourceReference: SourceReference }) => ({ date: item.date, tenderEvidence: quoteForRef(item.sourceReference) })),
+        "Final deadlines must preserve the exact server-resolved timestamps and original text selected by the returned references");
+      assert.deepEqual(resolved.map((item: { sourceReference: SourceReference }) => item.sourceReference),
+        expectedOutput.deadlines.map(item => refForQuote(item.tenderEvidence)),
+        "The calendar tool must return the same source references used for the final deadlines");
       if (scenario === "russian") {
         assert.match(assessment.summary, /[А-Яа-яЁё]/u);
         assert.match(assessment.disclaimer, /[А-Яа-яЁё]/u);
@@ -273,12 +395,34 @@ async function main() {
         const expectedStatus = scenario === "missing-validity-document" ? "missing" : scenario === "expired-present-document" ? "at_risk" : "unknown";
         assert.equal(assessment.requirements[0].status, expectedStatus);
         assert.equal(assessment.requirements[0].companyEvidence, getCompanyEvidence(profile)["expert-opinion"]);
-        assert.equal(assessment.requirements[0].tenderEvidence, validityClause);
+        assert.equal(assessment.requirements[0].tenderEvidence, quoteForRef(refForQuote(validityClause)));
         assert.equal(assessment.overallRisk, expectedStatus === "missing" ? "high" : expectedStatus === "at_risk" ? "medium" : "unknown");
         assert.equal(assessment.actions.length, 1);
         assert.equal(assessment.actions[0].priority, expectedStatus === "missing" ? "critical" : expectedStatus === "at_risk" ? "high" : "medium");
         assert.equal(assessment.deadlines.length, 1);
         assert.equal(assessment.alerts.length, 3);
+      } else if (mixedDeadlineScenario) {
+        assert.deepEqual(assessment.requirements, []);
+        assert.equal(assessment.overallRisk, "unknown");
+        assert.equal(assessment.deadlines.length, 1);
+        assert.equal(assessment.deadlines[0].tenderEvidence, mixedAbsoluteTimestamp,
+          "An absolute timestamp must be independently referenceable even when a relative duration precedes it on the same line");
+        assert.equal(assessment.actions.length, 1);
+        assert.ok(assessment.actions[0].description.includes(expectedOutput.unresolvedDeadlines[0].tenderEvidence));
+        assert.ok(assessment.actions[0].description.includes(mixedRelativeClause));
+        assert.equal(assessment.actions[0].description.includes("2026-11-10"), false,
+          "The unresolved relative span must exclude the adjacent absolute instant");
+        assert.equal(assessment.alerts.length, 3, "Only the explicit submission deadline may create reminders");
+      } else if (wrappedSourceScenario) {
+        assert.equal(assessment.requirements.length, 1);
+        assert.equal(assessment.requirements[0].tenderEvidence, wrappedLicense);
+        assert.equal(assessment.requirements[0].status, "unknown");
+        assert.equal(assessment.requirements.some(item => item.tenderEvidence.includes(wrappedExemption)), false);
+        assert.deepEqual(assessment.deadlines, []);
+        assert.deepEqual(assessment.alerts, []);
+        assert.equal(assessment.actions.length, 2);
+        assert.ok(assessment.actions.some(item => item.description.includes(wrappedRelativeDeadline)),
+          "Relative duration must preserve the complete original wrapped clause without inventing an absolute deadline");
       } else if (!recovery && !conflictScenario) {
         assert.ok(allInputs.includes("covers_deadline_day"));
         assert.ok(allInputs.includes("2026-09-22T05:00:00.000Z"));
@@ -288,12 +432,13 @@ async function main() {
         assert.deepEqual(assessment.alerts, []);
         assert.equal(assessment.actions.length, 1, "A deadline-only tender must not create unrelated company-document advice");
         assert.match(assessment.actions[0].title, /time\s?zone/i);
-        assert.ok(assessment.actions[0].description.includes(finalOutput.unresolvedDeadlines[0].tenderEvidence));
+        assert.ok(assessment.actions[0].description.includes(expectedOutput.unresolvedDeadlines[0].tenderEvidence));
         assert.equal(/experience|registry|license|financial|expert opinion/i.test(JSON.stringify(assessment.actions)), false);
       } else {
         assert.equal(assessment.requirements.length, 1);
         assert.equal(assessment.requirements[0].status, "unknown", "A conflicting finding cannot become met even when the model proposes it");
-        assert.equal(assessment.requirements[0].conflictingEvidence, conflictingClauses[1]);
+        assert.equal(assessment.requirements[0].tenderEvidence, quoteForRef(refForQuote(conflictingClauses[0])));
+        assert.equal(assessment.requirements[0].conflictingEvidence, quoteForRef(refForQuote(conflictingClauses[1])));
         assert.equal(assessment.overallRisk, "unknown");
         assert.deepEqual(assessment.alerts, []);
         assert.equal(assessment.actions.length, 1);

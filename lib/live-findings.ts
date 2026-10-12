@@ -11,7 +11,7 @@ const UnresolvedDeadlineSchema = z.object({
   reason: z.enum(["missing_timezone", "missing_time", "invalid_date", "ambiguous"]),
 }).strict();
 
-/** The model supplies findings; summary, risk, actions and alerts are server output. */
+/** Internal findings after references resolve; summary, risk, actions and alerts are server output. */
 export const LiveFindingsSchema = z.object({
   requirements: z.array(RequirementSchema.extend({
     clauseState: z.enum(["unambiguous", "conflicting", "conditional"]),

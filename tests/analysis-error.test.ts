@@ -115,6 +115,7 @@ test("diagnostics identify an exact failed check and stage through nested SDK er
   assert.deepEqual(getAnalysisDiagnostics(error), { stage: "dates_checked", reason: "calendar_tool_out_of_order" });
   const wrappedProvider = new AnalysisRunError("profile_pending", providerError(401, "invalid_api_key"));
   assert.equal(getAnalysisFailure(wrappedProvider, "ru").code, "ai_authentication_failed");
+  assert.deepEqual(getAnalysisDiagnostics(new AnalysisRunError("final_received", new Error("Invalid tender source reference"))), { stage: "final_received", reason: "source_reference_invalid" });
 });
 
 test("server diagnostics never log arbitrary errors, schema issues, credentials or tender content", () => {
