@@ -131,6 +131,9 @@ const CHECK_REASONS = new Map([
   ["Conflicting finding needs a second source quote", "conflict_quote_missing"],
   ["Conflicting finding needs distinct source quotes", "conflict_quotes_identical"],
   ["Invalid conflicting requirement evidence", "conflict_evidence_invalid"],
+  ["Nonqualification finding needs applicability context", "applicability_context_missing"],
+  ["Ungrounded applicability context", "applicability_context_ungrounded"],
+  ["Invalid nonqualification finding", "nonqualification_finding_invalid"],
 ]);
 const SDK_REASONS = new Map([
   ["MaxTurnsExceededError", "model_turn_limit"],

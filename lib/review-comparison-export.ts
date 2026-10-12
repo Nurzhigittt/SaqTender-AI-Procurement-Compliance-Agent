@@ -3,6 +3,7 @@ import { reviewFilename, type ReviewEntry, type ReviewPacket } from "./assessmen
 import { translate, type Locale } from "./i18n";
 import { createReportHtml, escapeReportHtml } from "./report-export";
 import { compareReviews } from "./review-comparison";
+import { getRequirementKindLabel, getRequirementStatusLabel } from "./requirement-kind";
 
 export type ComparisonExportInput = {
   left: ReviewPacket;
@@ -37,10 +38,6 @@ export function createComparisonHtml(input: ComparisonExportInput): string {
     incorrect: tx("Marked incorrect", "Отмечено как ошибочное"),
     unsure: tx("Unsure", "Нет уверенности"),
   };
-  const statusLabels = {
-    met: tx("Met", "Выполнено"), missing: tx("Missing", "Отсутствует"),
-    at_risk: tx("At risk", "Есть риск"), unknown: tx("Unknown", "Нет данных"),
-  };
   const comparisonLabels = {
     same: tx("Same marks", "Оценки совпадают"),
     different: tx("Different marks", "Оценки различаются"),
@@ -50,11 +47,12 @@ export function createComparisonHtml(input: ComparisonExportInput): string {
   const reviewSide = (entry: ReviewEntry, side: "A" | "B") => `<div><span class="label">${side} · ${h(side === "A" ? tx("Current notes", "Текущие замечания") : tx("Comparison file", "Файл для сравнения"))}</span><p><strong>${h(labels[entry.verdict])}</strong></p><p>${h(entry.note || tx("No note provided.", "Замечание не добавлено."))}</p></div>`;
   const rows = comparison.rows.map(row => {
     const item = row.kind === "requirement" ? assessment.requirements[row.index] : assessment.deadlines[row.index];
+    const requirement = row.kind === "requirement" ? assessment.requirements[row.index] : undefined;
     const originalDetails = row.kind === "requirement"
-      ? `<p class="muted small">${h(tx("Original assessment status", "Исходный статус в отчёте"))}: ${h(statusLabels[assessment.requirements[row.index].status])}</p>`
+      ? `<p class="muted small">${h(tx("Original assessment status", "Исходный статус в отчёте"))}: ${h(getRequirementStatusLabel(assessment.requirements[row.index], locale))}</p>${requirement?.kind ? `<p class="muted small">${h(tx("Type", "Тип"))}: ${h(getRequirementKindLabel(requirement.kind, locale))}</p>` : ""}`
       : `<p class="muted small">${h(tx("Original deadline with time zone", "Исходный срок с часовым поясом"))}: ${h(assessment.deadlines[row.index].date)}</p>`;
     const conflictingEvidence = row.kind === "requirement" ? assessment.requirements[row.index].conflictingEvidence : undefined;
-    return `<article class="card"><div class="card-heading"><h3>${h(row.kind === "requirement" ? tx("Requirement", "Требование") : tx("Deadline", "Срок"))} ${row.index + 1}. ${h(item.title)}</h3><span class="badge neutral">${h(comparisonLabels[row.comparison])}</span></div>${originalDetails}${source(item.tenderEvidence)}${conflictingEvidence ? source(conflictingEvidence, tx("Conflicting clause", "Противоречивое условие")) : ""}<div class="evidence-pair">${reviewSide(row.left, "A")}${reviewSide(row.right, "B")}</div>${row.needsDiscussion ? `<p class="small past">${h(tx("Flagged for discussion; this is not a correctness judgment.", "Отмечено для обсуждения; это не вывод о правильности анализа."))}</p>` : ""}</article>`;
+    return `<article class="card"><div class="card-heading"><h3>${h(row.kind === "requirement" ? tx("Requirement", "Требование") : tx("Deadline", "Срок"))} ${row.index + 1}. ${h(item.title)}</h3><span class="badge neutral">${h(comparisonLabels[row.comparison])}</span></div>${originalDetails}${source(item.tenderEvidence)}${requirement?.contextEvidence ? source(requirement.contextEvidence, tx("Scope context", "Контекст применения")) : ""}${conflictingEvidence ? source(conflictingEvidence, tx("Conflicting clause", "Противоречивое условие")) : ""}<div class="evidence-pair">${reviewSide(row.left, "A")}${reviewSide(row.right, "B")}</div>${row.needsDiscussion ? `<p class="small past">${h(tx("Flagged for discussion; this is not a correctness judgment.", "Отмечено для обсуждения; это не вывод о правильности анализа."))}</p>` : ""}</article>`;
   }).join("");
   const separateNotes = (title: string, left: string, right: string, differ: boolean, empty: string) => `<article class="card"><div class="card-heading"><h3>${h(title)}</h3><span class="badge neutral">${h(differ ? tx("Texts differ", "Тексты различаются") : tx("Texts match", "Тексты совпадают"))}</span></div><div class="evidence-pair"><div><span class="label">A · ${h(tx("Current notes", "Текущие замечания"))}</span><p>${h(left || empty)}</p></div><div><span class="label">B · ${h(tx("Comparison file", "Файл для сравнения"))}</span><p>${h(right || empty)}</p></div></div></article>`;
   const { summary } = comparison;

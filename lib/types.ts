@@ -1,10 +1,15 @@
 import { z } from "zod";
 
+export const RequirementKindSchema = z.enum(["qualification", "contract_obligation", "evaluation_criterion", "exemption", "unclear"]);
+
 export const RequirementSchema = z.object({
   title: z.string().min(1).max(200),
   status: z.enum(["met", "missing", "at_risk", "unknown"]),
   tenderEvidence: z.string().min(1).max(2000),
   conflictingEvidence: z.string().min(1).max(2000).optional(),
+  // Optional only for importing historical reports; live findings require a kind.
+  kind: RequirementKindSchema.optional(),
+  contextEvidence: z.string().min(1).max(2000).optional(),
   companyEvidence: z.string().min(1).max(1000),
   explanation: z.string().min(1).max(2000),
 }).strict();

@@ -13,6 +13,7 @@ const requirement = (reference = range(1)) => ({
   title: "Проверка требования", status: "unknown", explanation: "Недостаточно подтверждений.",
   companyEvidence: UNKNOWN_COMPANY_EVIDENCE, clauseState: "unambiguous",
   sourceReference: reference, conflictingSourceReference: null,
+  kind: "qualification", contextSourceReference: null,
 });
 
 test("numbered spans preserve exact PDF whitespace, Unicode and wrapped negative clauses", () => {

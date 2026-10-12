@@ -1,6 +1,7 @@
 import { createReviewPacket, summarizeReview, type ReviewPacketInput } from "./assessment-review";
 import { translate } from "./i18n";
 import { createReportHtml, escapeReportHtml } from "./report-export";
+import { getRequirementKindLabel, getRequirementStatusLabel } from "./requirement-kind";
 
 /** A local, offline review accompanies the original assessment without changing it. */
 export function createReviewHtml(input: ReviewPacketInput): string {
@@ -15,17 +16,11 @@ export function createReviewHtml(input: ReviewPacketInput): string {
     incorrect: tx("Marked incorrect by the team", "Команда считает ошибочным"),
     unsure: tx("Team is unsure", "Команда не уверена"),
   };
-  const statusLabels = {
-    met: tx("Met", "Выполнено"),
-    missing: tx("Missing", "Отсутствует"),
-    at_risk: tx("At risk", "Есть риск"),
-    unknown: tx("Unknown", "Нет данных"),
-  };
   const source = (quote: string, label = tx("Original tender evidence", "Цитата из тендера в оригинале")) => `<div class="source"><span class="label">${h(label)}</span><blockquote>${h(quote)}</blockquote></div>`;
   const note = (value: string) => `<div class="source"><span class="label">${h(tx("Team note", "Замечание команды"))}</span><p>${h(value || tx("No note provided.", "Замечание не добавлено."))}</p></div>`;
   const requirements = assessment.requirements.map((item, index) => {
     const entry = review.requirements[index];
-    return `<article class="card"><div class="card-heading"><h3>${index + 1}. ${h(item.title)}</h3><span class="badge neutral">${h(verdictLabels[entry.verdict])}</span></div><p class="muted small">${h(tx("Original assessment status", "Исходный статус в отчёте"))}: ${h(statusLabels[item.status])}</p>${source(item.tenderEvidence)}${item.conflictingEvidence ? source(item.conflictingEvidence, tx("Conflicting clause", "Противоречивое условие")) : ""}${note(entry.note)}</article>`;
+    return `<article class="card"><div class="card-heading"><h3>${index + 1}. ${h(item.title)}</h3><span class="badge neutral">${h(verdictLabels[entry.verdict])}</span></div><p class="muted small">${h(tx("Original assessment status", "Исходный статус в отчёте"))}: ${h(getRequirementStatusLabel(item, locale))}</p>${item.kind ? `<p class="muted small">${h(tx("Type", "Тип"))}: ${h(getRequirementKindLabel(item.kind, locale))}</p>` : ""}${source(item.tenderEvidence)}${item.contextEvidence ? source(item.contextEvidence, tx("Scope context", "Контекст применения")) : ""}${item.conflictingEvidence ? source(item.conflictingEvidence, tx("Conflicting clause", "Противоречивое условие")) : ""}${note(entry.note)}</article>`;
   }).join("");
   const deadlines = assessment.deadlines.map((item, index) => {
     const entry = review.deadlines[index];

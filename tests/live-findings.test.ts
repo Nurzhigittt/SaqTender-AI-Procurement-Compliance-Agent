@@ -16,6 +16,8 @@ function requirement(changes: Partial<LiveFindings["requirements"][number]> = {}
     companyEvidence: evidence["work-experience"],
     status: "missing",
     explanation: "The relevant record is marked missing.",
+    kind: "qualification",
+    contextEvidence: null,
     clauseState: "unambiguous",
     conflictingEvidence: null,
     ...changes,
@@ -149,17 +151,18 @@ test("unresolved deadlines retain exact source and use neutral wording for unsup
   assert.throws(() => buildLiveAssessment(findings({ unresolvedDeadlines: [{ tenderEvidence: "Invented date", reason: "ambiguous" }] }), quote, DEMO_COMPANY, "en"), /Ungrounded finding evidence/);
 });
 
-test("only non-met linked requirements produce document actions and deterministic risk", () => {
+test("metadata-only positive findings become unknown and missing requirements retain deterministic risk", () => {
   const license = "The bidder must hold an active construction license.";
   const text = `${license}\n${source}`;
   const met = requirement({ tenderEvidence: license, companyEvidence: evidence["construction-license"], status: "met" });
   const result = buildLiveAssessment(findings({ requirements: [met, requirement()] }), text, DEMO_COMPANY, "en");
-  assert.equal(result.actions.length, 1);
-  assert.match(result.actions[0].title, /requirement 2/);
-  assert.equal(result.actions[0].priority, "critical");
+  assert.equal(result.actions.length, 2);
+  assert.match(result.actions[1].title, /requirement 2/);
+  assert.equal(result.actions[1].priority, "critical");
   assert.equal(result.overallRisk, "high");
-  assert.ok(result.actions[0].description.includes(source));
-  assert.equal(buildLiveAssessment(findings({ requirements: [met] }), text, DEMO_COMPANY, "en").overallRisk, "low");
+  assert.ok(result.actions[1].description.includes(source));
+  assert.equal(result.requirements[0].status, "unknown");
+  assert.equal(buildLiveAssessment(findings({ requirements: [met] }), text, DEMO_COMPANY, "en").overallRisk, "unknown");
   assert.equal(buildLiveAssessment(findings({ requirements: [{ ...met, status: "at_risk" }] }), text, DEMO_COMPANY, "en").overallRisk, "medium");
   assert.equal(buildLiveAssessment(findings({ requirements: [{ ...met, status: "unknown" }] }), text, DEMO_COMPANY, "en").overallRisk, "unknown");
 });

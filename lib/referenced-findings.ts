@@ -10,9 +10,10 @@ export const ReferencedDeadlineSchema = ReferencedDeadlineCandidateSchema.extend
 
 /** Model-facing contract contains references, never model-authored source quotes. */
 export const ReferencedFindingsSchema = LiveFindingsSchema.extend({
-  requirements: z.array(LiveFindingsSchema.shape.requirements.element.omit({ tenderEvidence: true, conflictingEvidence: true }).extend({
+  requirements: z.array(LiveFindingsSchema.shape.requirements.element.omit({ tenderEvidence: true, conflictingEvidence: true, contextEvidence: true }).extend({
     sourceReference: SourceReferenceSchema,
     conflictingSourceReference: SourceReferenceSchema.nullable(),
+    contextSourceReference: SourceReferenceSchema.nullable().describe("Full governing heading, exemption or applicability clause. Required for contract_obligation, evaluation_criterion and exemption; may refer to the main clause itself. May be distant from sourceReference. Never omit exceptions or no-rejection wording."),
   }).strict()).max(60).describe(LiveFindingsSchema.shape.requirements.description!),
   deadlines: z.array(ReferencedDeadlineSchema).max(30),
   unresolvedDeadlines: z.array(LiveFindingsSchema.shape.unresolvedDeadlines.element.omit({ tenderEvidence: true }).extend({
@@ -35,10 +36,11 @@ export function resolveReferencedDeadlines(value: unknown, fragments: readonly T
 export function resolveReferencedFindings(value: unknown, fragments: readonly TenderFragment[], source: string): LiveFindings {
   const findings = ReferencedFindingsSchema.parse(value);
   return LiveFindingsSchema.parse({
-    requirements: findings.requirements.map(({ sourceReference, conflictingSourceReference, ...requirement }) => ({
+    requirements: findings.requirements.map(({ sourceReference, conflictingSourceReference, contextSourceReference, ...requirement }) => ({
       ...requirement,
       tenderEvidence: resolveSourceReference(sourceReference, fragments, source),
       conflictingEvidence: conflictingSourceReference === null ? null : resolveSourceReference(conflictingSourceReference, fragments, source),
+      contextEvidence: contextSourceReference === null ? null : resolveSourceReference(contextSourceReference, fragments, source),
     })),
     deadlines: resolveReferencedDeadlines(findings.deadlines, fragments, source),
     unresolvedDeadlines: findings.unresolvedDeadlines.map(({ sourceReference, ...deadline }) => ({

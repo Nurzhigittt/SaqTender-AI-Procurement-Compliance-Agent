@@ -13,6 +13,7 @@ type QuoteFindings = LiveFindings;
 
 async function main() {
   const scenario = process.argv[2];
+  const classificationScenario = scenario.startsWith("classification-");
   const validityScenario = ["expired-present-document", "expired-present-as-missing", "missing-validity-document", "same-day-validity", "renewed-validity"].includes(scenario);
   const wrappedSourceScenario = scenario === "linewrapped-source-references";
   const mixedDeadlineScenario = scenario === "mixed-relative-absolute-references";
@@ -52,7 +53,18 @@ async function main() {
   const wrappedRelativeDeadline = "Срок выполнения работ: 120 календарных дней\nс даты подписания договора, январь 2026 года.";
   const mixedRelativeClause = "Работы выполняются в течение 120 календарных дней с даты подписания договора";
   const mixedAbsoluteTimestamp = "2026-11-10 10:00 Asia/Almaty.";
-  const tenderText = retentionScenario
+  const classificationLicense = "Bidders must hold a category III construction license covering lift installation.";
+  const classificationExemption = "Completed lift installation experience is not required as a qualification condition.";
+  const classificationContractContext = "The following personnel duties apply only after contract award. Their absence from an application is not a ground for rejection.";
+  const classificationContractClause = "Personnel must have electrical safety group III and the relevant training certificates.";
+  const classificationEvaluation = "Completed lift installation experience is used only for price evaluation points, not as a qualification condition.";
+  const classificationText = scenario === "classification-exemption" ? classificationExemption
+    : ["classification-contract-context", "classification-invalid-context"].includes(scenario)
+      ? `${classificationContractContext}\n${Array.from({ length: 24 }, (_, index) => `Section note ${index + 1}: retain the published equipment specifications.`).join("\n")}\n${classificationContractClause}`
+      : scenario === "classification-evaluation" ? classificationEvaluation : classificationLicense;
+  const tenderText = classificationScenario
+    ? `FICTIONAL EVALUATION NOTICE.\n${classificationText}`
+    : retentionScenario
     ? `FICTIONAL EVALUATION NOTICE.\n${retentionQuotes.join("\n")}`
     : mixedDeadlineScenario
     ? `ВЫМЫШЛЕННЫЙ ПРОВЕРОЧНЫЙ ПРИМЕР.\n${mixedRelativeClause}, крайний срок подачи заявки ${mixedAbsoluteTimestamp}`
@@ -79,7 +91,7 @@ async function main() {
   const canonical = analyzeDemoTender(tenderText, locale, profile);
   const originalAssessment = scenario === "custom-profile-old-evidence" ? analyzeDemoTender(tenderText, locale) : canonical;
   const finalOutput: QuoteFindings = {
-    requirements: structuredClone(originalAssessment.requirements).map(item => ({ ...item, clauseState: "unambiguous", conflictingEvidence: null })),
+    requirements: structuredClone(originalAssessment.requirements).map(item => ({ ...item, kind: "qualification", contextEvidence: null, clauseState: "unambiguous", conflictingEvidence: null })),
     deadlines: structuredClone(originalAssessment.deadlines),
     unresolvedDeadlines: [],
   };
@@ -125,6 +137,7 @@ async function main() {
       conflictingEvidence: scenario === "fabricated-conflicting-evidence" ? "A fabricated exemption appears nowhere in this tender." : conflictingClauses[1],
       companyEvidence: getCompanyEvidence(profile)["work-experience"],
       explanation: "The model incorrectly proposes met despite two conflicting clauses.",
+      kind: "qualification", contextEvidence: null,
       clauseState: "conflicting",
     }];
     finalOutput.deadlines = [];
@@ -141,6 +154,7 @@ async function main() {
         : ["missing-validity-document", "expired-present-as-missing"].includes(scenario)
           ? "Требуемое заключение отсутствует в профиле."
           : "Указанный срок действия покрывает день подачи; содержание и подлинность документа не проверены.",
+      kind: "qualification", contextEvidence: null,
       clauseState: "unambiguous",
       conflictingEvidence: null,
     }];
@@ -151,6 +165,7 @@ async function main() {
       title: "Строительная лицензия", status: "unknown", tenderEvidence: wrappedLicense,
       companyEvidence: getCompanyEvidence(profile)["construction-license"],
       explanation: "Запись о лицензии присутствует, но её содержание не проверено.",
+      kind: "qualification", contextEvidence: null,
       clauseState: "unambiguous", conflictingEvidence: null,
     }];
     finalOutput.deadlines = [];
@@ -169,6 +184,24 @@ async function main() {
       ? [{ tenderEvidence: incompleteTimezoneQuote, reason: "missing_timezone" }]
       : scenario === "calendar-unresolved-overflow" ? retentionQuotes.slice(20).map(tenderEvidence => ({ tenderEvidence, reason: "ambiguous" as const })) : [];
   }
+  if (classificationScenario) {
+    const isContract = ["classification-contract-context", "classification-invalid-context"].includes(scenario);
+    const isExemption = scenario === "classification-exemption";
+    const isEvaluation = scenario === "classification-evaluation";
+    finalOutput.requirements = [{
+      title: isContract ? "Trained personnel" : isExemption || isEvaluation ? "Completed lift installation experience" : "Construction license category and scope",
+      status: isContract || isExemption || isEvaluation ? "missing" : "met",
+      kind: isContract ? "contract_obligation" : isExemption ? "exemption" : isEvaluation ? "evaluation_criterion" : "qualification",
+      tenderEvidence: isContract ? classificationContractClause : classificationText,
+      contextEvidence: isContract ? classificationContractContext : isExemption || isEvaluation ? classificationText : null,
+      companyEvidence: getCompanyEvidence(profile)[isContract || isExemption || isEvaluation ? "work-experience" : "construction-license"],
+      explanation: "The simulated model proposes a compliance status that must not override server classification rules.",
+      clauseState: "unambiguous",
+      conflictingEvidence: null,
+    }];
+    finalOutput.deadlines = [];
+    finalOutput.unresolvedDeadlines = [];
+  }
   // The model selects ranges. The server, not this simulated model, supplies the
   // original quote, including PDF line breaks and punctuation outside a substring.
   const expectedOutput: QuoteFindings = {
@@ -176,20 +209,24 @@ async function main() {
       ...item,
       tenderEvidence: tenderText.includes(item.tenderEvidence) ? quoteForRef(refForQuote(item.tenderEvidence)) : item.tenderEvidence,
       conflictingEvidence: item.conflictingEvidence && tenderText.includes(item.conflictingEvidence) ? quoteForRef(refForQuote(item.conflictingEvidence)) : item.conflictingEvidence,
+      contextEvidence: item.contextEvidence && tenderText.includes(item.contextEvidence) ? quoteForRef(refForQuote(item.contextEvidence)) : item.contextEvidence,
     })),
     deadlines: finalOutput.deadlines.map(item => ({ ...item, tenderEvidence: quoteForRef(refForQuote(item.tenderEvidence)) })),
     unresolvedDeadlines: finalOutput.unresolvedDeadlines.map(item => ({ ...item, tenderEvidence: quoteForRef(refForQuote(item.tenderEvidence)) })),
   };
   const modelOutput = () => {
     const result = {
-      requirements: finalOutput.requirements.map(({ tenderEvidence, conflictingEvidence, ...item }) => ({
+      requirements: finalOutput.requirements.map(({ tenderEvidence, conflictingEvidence, contextEvidence, ...item }) => ({
         ...item,
         sourceReference: referenceForEvidence(tenderEvidence),
         conflictingSourceReference: conflictingEvidence === null ? null : referenceForEvidence(conflictingEvidence),
+        contextSourceReference: contextEvidence === null ? null : referenceForEvidence(contextEvidence),
       })),
       deadlines: finalOutput.deadlines.map(modelDeadline),
       unresolvedDeadlines: finalOutput.unresolvedDeadlines.map(({ tenderEvidence, ...item }) => ({ ...item, sourceReference: referenceForEvidence(tenderEvidence) })),
     };
+    if (scenario === "classification-invalid-context") result.requirements[0].contextSourceReference = unknownReference;
+    if (scenario === "classification-kind-omitted") Reflect.deleteProperty(result.requirements[0], "kind");
     if (scenario === "reversed-source-reference") result.requirements[0].sourceReference = { startFragment: fragments.at(-1)!.id, endFragment: fragments[0].id };
     if (scenario === "model-authored-quote") Object.assign(result.requirements[0], { tenderEvidence: finalOutput.requirements[0].tenderEvidence });
     if (scenario === "model-authored-deadline-quote") Object.assign(result.deadlines[0], { tenderEvidence: finalOutput.deadlines[0].tenderEvidence });
@@ -250,13 +287,17 @@ async function main() {
       assert.deepEqual(Object.keys(outputSchema.properties).sort(), ["deadlines", "requirements", "unresolvedDeadlines"]);
       assert.equal(outputSchema.additionalProperties, false, "The model cannot add standalone summary, risk, actions, alerts or disclaimer fields");
       for (const [key, expectedKeys] of [
-        ["requirements", ["title", "status", "sourceReference", "conflictingSourceReference", "companyEvidence", "explanation", "clauseState"]],
+        ["requirements", ["title", "status", "kind", "sourceReference", "conflictingSourceReference", "contextSourceReference", "companyEvidence", "explanation", "clauseState"]],
         ["deadlines", ["title", "date", "sourceReference"]],
         ["unresolvedDeadlines", ["sourceReference", "reason"]],
       ] as const) {
         const itemSchema = outputSchema.properties[key].items;
         assert.deepEqual(Object.keys(itemSchema.properties).sort(), [...expectedKeys].sort());
-        assert.equal(itemSchema.additionalProperties, false, "No model-authored tender or conflicting quotes may enter the structured findings");
+        assert.equal(itemSchema.additionalProperties, false, "No model-authored tender, context or conflicting quotes may enter the structured findings");
+        assert.deepEqual([...itemSchema.required].sort(), [...expectedKeys].sort(), "Every model finding field, including nullable references and classification, must be explicitly present");
+        if (key === "requirements") {
+          assert.deepEqual(itemSchema.properties.kind.enum, ["qualification", "contract_obligation", "evaluation_criterion", "exemption", "unclear"]);
+        }
         assert.deepEqual(Object.keys(itemSchema.properties.sourceReference.properties).sort(), ["endFragment", "startFragment"]);
         assert.equal(itemSchema.properties.sourceReference.additionalProperties, false);
       }
@@ -304,7 +345,7 @@ async function main() {
       } }), { status: quota ? 429 : 401, headers: { "Content-Type": "application/json", "x-should-retry": "false" } });
     }
 
-    const toolDeadlines = mixedDeadlineScenario ? structuredClone(finalOutput.deadlines) : wrappedSourceScenario ? [] : structuredClone(canonical.deadlines);
+    const toolDeadlines = classificationScenario ? [] : mixedDeadlineScenario ? structuredClone(finalOutput.deadlines) : wrappedSourceScenario ? [] : structuredClone(canonical.deadlines);
     if (scenario === "rephrased-deadline-titles") {
       toolDeadlines.forEach(item => { item.title = `${requests.length === 2 ? "Calendar check" : "Draft reminder"}: ${item.title}`; });
     }
@@ -445,6 +486,17 @@ async function main() {
         return true;
       });
       assert.equal(requests.length, 4, "The unchanged final-output validator must reject the model's unsupported missing claim");
+    } else if (["classification-invalid-context", "classification-kind-omitted"].includes(scenario)) {
+      await assert.rejects(analyzeLiveTender(tenderText, controller.signal, locale, profile), (error: unknown) => {
+        assert.ok(error instanceof Error);
+        if (scenario === "classification-invalid-context") {
+          assert.equal((error as Error & { stage?: string }).stage, "final_received");
+          assert.ok(error.cause instanceof Error);
+          assert.equal(error.cause.message, "Invalid tender source reference", "An invalid context must fail provenance validation rather than reaching status normalization");
+        }
+        return true;
+      });
+      assert.equal(requests.length, 4, "Classification and context failures must occur after the real SDK receives the malformed final finding");
     } else if (["missing-profile", "missing-date-check", "wrong-date-input", "wrong-evidence", "wrong-alert-input", "wrong-deadline-date", "wrong-deadline-evidence", "ambiguous-date-quote", "calendar-feedback-repeated", "calendar-feedback-bypass", "abort", "provider-error", "custom-profile-old-evidence", "fabricated-conflicting-evidence", "reversed-source-reference", "model-authored-quote", "model-authored-deadline-quote", "model-authored-tool-quote", "unknown-unresolved-reference"].includes(scenario)) {
       await assert.rejects(analyzeLiveTender(tenderText, controller.signal, locale, profile));
       if (["wrong-evidence", "fabricated-conflicting-evidence", "reversed-source-reference", "model-authored-quote", "model-authored-deadline-quote", "unknown-unresolved-reference"].includes(scenario)) {
@@ -473,7 +525,7 @@ async function main() {
         .find(item => item.type === "function_call_output" && item.call_id === (recovery ? "call_3" : "call_2"));
       assert.equal(typeof calendarOutput?.output, "string", "The model must receive the calendar tool's canonical deadline data");
       const resolved = JSON.parse(calendarOutput!.output as string).deadlines;
-      assert.deepEqual(resolved.map((item: { date: string }) => item.date).sort(), recovery || conflictScenario || wrappedSourceScenario ? []
+      assert.deepEqual(resolved.map((item: { date: string }) => item.date).sort(), recovery || conflictScenario || wrappedSourceScenario || classificationScenario ? []
         : validityScenario || mixedDeadlineScenario ? ["2026-11-10T05:00:00.000Z"] : ["2026-09-26T13:00:00.000Z", "2026-09-29T05:00:00.000Z"]);
       assert.deepEqual(assessment.deadlines.map(item => ({ date: item.date, tenderEvidence: item.tenderEvidence })),
         resolved.map((item: { date: string; sourceReference: SourceReference }) => ({ date: item.date, tenderEvidence: quoteForRef(item.sourceReference) })),
@@ -492,7 +544,40 @@ async function main() {
       const allInputs = JSON.stringify(requests.map((request) => request.input));
       assert.ok(allInputs.includes(profile.name));
       assert.ok(allInputs.includes("evidenceByDocumentId"));
-      if (validityScenario) {
+      if (classificationScenario) {
+        assert.equal(assessment.requirements.length, 1);
+        const requirement = assessment.requirements[0];
+        const expected = expectedOutput.requirements[0];
+        assert.equal(requirement.kind, expected.kind);
+        assert.equal(requirement.tenderEvidence, expected.tenderEvidence);
+        assert.equal(requirement.contextEvidence ?? null, expected.contextEvidence);
+        assert.equal(requirement.companyEvidence, expected.companyEvidence);
+        assert.equal(requirement.status, "unknown", "Neither a missing nonqualification record nor an active generic license may establish qualification compliance");
+        assert.equal(assessment.overallRisk, "unknown");
+        assert.deepEqual(assessment.deadlines, []);
+        assert.deepEqual(assessment.alerts, []);
+        assert.equal(assessment.actions.some(item => item.priority === "critical" || item.priority === "high"), false);
+        if (scenario === "classification-exemption") {
+          assert.deepEqual(assessment.actions, [], "An explicit grounded exemption must not create a missing-document action");
+        } else {
+          assert.equal(assessment.actions.length, 1);
+          assert.equal(assessment.actions[0].priority, scenario === "classification-evaluation" ? "low" : "medium");
+          if (expected.contextEvidence !== null) {
+            assert.ok(assessment.actions[0].description.includes(expected.contextEvidence), "The action must carry the server-restored applicability context");
+            assert.ok(assessment.actions[0].description.includes(expected.tenderEvidence), "The action must also identify the classified clause");
+          }
+        }
+        if (scenario === "classification-contract-context") {
+          assert.equal(requirement.contextEvidence, classificationContractContext);
+          assert.ok(refForQuote(classificationContractClause).startFragment - refForQuote(classificationContractContext).endFragment > 20,
+            "This fixture must exercise distant source context rather than a neighboring quote");
+          assert.equal(requirement.contextEvidence?.includes("Section note"), false, "The exact context must not include intervening unrelated text");
+        }
+        if (scenario === "classification-license-met") {
+          assert.notEqual(requirement.explanation, finalOutput.requirements[0].explanation, "The server must explain why an active record cannot verify the license category and scope");
+          assert.match(requirement.explanation, /scope|categor|original|content|sufficien|verify/i);
+        }
+      } else if (validityScenario) {
         assert.equal(assessment.requirements.length, 1);
         const expectedStatus = scenario === "missing-validity-document" ? "missing" : scenario === "expired-present-document" ? "at_risk" : "unknown";
         assert.equal(assessment.requirements[0].status, expectedStatus);

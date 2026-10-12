@@ -1,6 +1,7 @@
 import { DEMO_COMPANY, UNKNOWN_COMPANY_EVIDENCE } from "./demo-data";
 import { getCompanyEvidence } from "./company-profile";
-import { AssessmentSchema, type Assessment, type Deadline, type CompanyProfile } from "./types";
+import { countsTowardQualification } from "./requirement-kind";
+import { AssessmentSchema, type Assessment, type Deadline, type CompanyProfile, type Requirement } from "./types";
 
 /** Only explicit full dates with a time and timezone can become a deadline. */
 export function explicitDatesInEvidence(text: string): string[] {
@@ -62,30 +63,35 @@ export function validateGroundedDeadlines(deadlines: Deadline[], tenderText: str
   }
 }
 
+export function validateRequirementCompanyEvidence(requirement: Requirement, companyProfile: CompanyProfile): void {
+  const companyEvidence = getCompanyEvidence(companyProfile);
+  const documentId = Object.keys(companyEvidence).find((id) => companyEvidence[id] === requirement.companyEvidence);
+  if (!documentId && requirement.companyEvidence !== UNKNOWN_COMPANY_EVIDENCE) throw new Error("Ungrounded company evidence");
+  const document = companyProfile.documents.find((item) => item.id === documentId);
+  if (requirement.status === "missing" && document?.status !== "missing") throw new Error("Unsupported missing-document claim");
+  if (requirement.status === "met" && document?.status !== "active") throw new Error("Unsupported document-compliance claim");
+  if (requirement.status === "at_risk" && !document) throw new Error("Unsupported document risk");
+}
+
 export function validateGroundedAssessment(value: unknown, tenderText: string, companyProfile: CompanyProfile = DEMO_COMPANY): Assessment {
   const assessment = AssessmentSchema.parse(value);
-  const companyEvidence = getCompanyEvidence(companyProfile);
   for (const requirement of assessment.requirements) {
     if (!tenderText.includes(requirement.tenderEvidence)) throw new Error("Ungrounded requirement evidence");
+    if (requirement.contextEvidence !== undefined && !tenderText.includes(requirement.contextEvidence)) throw new Error("Ungrounded applicability context");
+    if (!countsTowardQualification(requirement) && (requirement.status !== "unknown" || !requirement.contextEvidence)) throw new Error("Invalid nonqualification finding");
     if (requirement.conflictingEvidence !== undefined && (
       !requirement.conflictingEvidence.trim() ||
       !tenderText.includes(requirement.conflictingEvidence) ||
       requirement.conflictingEvidence.trim() === requirement.tenderEvidence.trim() ||
       requirement.status !== "unknown"
     )) throw new Error("Invalid conflicting requirement evidence");
-    const documentId = Object.keys(companyEvidence).find((id) => companyEvidence[id] === requirement.companyEvidence);
-    if (!documentId && requirement.companyEvidence !== UNKNOWN_COMPANY_EVIDENCE) {
-      throw new Error("Ungrounded company evidence");
-    }
-    const document = companyProfile.documents.find((item) => item.id === documentId);
-    if (requirement.status === "missing" && document?.status !== "missing") throw new Error("Unsupported missing-document claim");
-    if (requirement.status === "met" && document?.status !== "active") throw new Error("Unsupported document-compliance claim");
-    if (requirement.status === "at_risk" && !document) throw new Error("Unsupported document risk");
+    validateRequirementCompanyEvidence(requirement, companyProfile);
   }
   validateGroundedDeadlines(assessment.deadlines, tenderText);
   // A missing mandatory item or unresolved fact must not be labelled low risk.
-  if (assessment.requirements.some((item) => item.status === "missing")) assessment.overallRisk = "high";
-  else if (assessment.overallRisk === "low" && (!assessment.requirements.length || assessment.requirements.some((item) => item.status === "unknown"))) {
+  const qualifications = assessment.requirements.filter(countsTowardQualification);
+  if (qualifications.some((item) => item.status === "missing")) assessment.overallRisk = "high";
+  else if (assessment.overallRisk === "low" && (!qualifications.length || qualifications.some((item) => item.status === "unknown"))) {
     assessment.overallRisk = "unknown";
   }
   return assessment;

@@ -68,7 +68,7 @@ for (const locale of locales) {
       companyEvidence: UNKNOWN_COMPANY_EVIDENCE,
       status: "unknown",
       explanation: "The supplied company records do not establish this attestation or its scope.",
-      clauseState: "unambiguous",
+      clauseState: "unambiguous", kind: "qualification", contextEvidence: null,
       conflictingEvidence: null,
     };
     const input = findings(clauses.map((clause, index) => ({
@@ -82,6 +82,7 @@ for (const locale of locales) {
 
     assert.deepEqual(result.requirements, [{
       title: qualification.title,
+      kind: "qualification",
       tenderEvidence: qualificationQuote,
       companyEvidence: UNKNOWN_COMPANY_EVIDENCE,
       status: "unknown",

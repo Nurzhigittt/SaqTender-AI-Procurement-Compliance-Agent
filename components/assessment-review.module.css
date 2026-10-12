@@ -11,6 +11,7 @@
 .row { padding: 20px 0; border-bottom: 1px solid #e5ebef; }
 .rowHeading { display: flex; align-items: flex-start; gap: 16px; justify-content: space-between; }
 .rowHeading h4 { margin: 0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.kind { display: inline-block; margin: 9px 0 0; padding: 4px 8px; border-radius: 5px; background: #eef3f5; color: #55707b; font-size: 11px; line-height: 1.5; }
 .row blockquote { border-left: 2px solid #bddad0; padding-left: 12px; margin: 12px 0; font-size: 12px; line-height: 1.7; color: #556f78; white-space: pre-wrap; overflow-wrap: anywhere; }
 .evidence, .explanation { font-size: 12px; line-height: 1.65; color: #687780; margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .date { color: #36766f; font-size: 13px; font-weight: 600; margin: 10px 0; }

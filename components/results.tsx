@@ -5,7 +5,9 @@ import { ArrowRight, Bell, CalendarClock, Check, ChevronDown, CircleHelp, Clock3
 import { DEMO_COMPANY } from "@/lib/demo-data";
 import type { Assessment, CompanyProfile } from "@/lib/types";
 import { translate, translateCompanyEvidence, type Locale } from "@/lib/i18n";
-import { Badge, StatusBadge, formatDate } from "./ui";
+import { Badge, formatDate } from "./ui";
+import { RequirementStatusBadge } from "./requirement-status";
+import { countsTowardQualification, getRequirementKindLabel } from "@/lib/requirement-kind";
 import { ReportActions } from "./report-actions";
 import { ManualAssessmentReview } from "./assessment-review";
 import { createEmptyReview } from "@/lib/assessment-review";
@@ -18,12 +20,13 @@ export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, se
   const sourceEvidence = [
     ...assessment.requirements.flatMap(r => [
       { title: r.title, evidence: r.tenderEvidence, type: tx("REQUIREMENT", "ТРЕБОВАНИЕ") },
+      ...(r.contextEvidence ? [{ title: r.title, evidence: r.contextEvidence, type: tx("Scope context", "Контекст применения") }] : []),
       ...(r.conflictingEvidence ? [{ title: r.title, evidence: r.conflictingEvidence, type: tx("Conflicting clause", "Противоречивое условие") }] : []),
     ]),
     ...assessment.deadlines.map(d => ({ title: d.title, evidence: d.tenderEvidence, type: tx("DEADLINE", "СРОК") })),
   ];
   const tabs = [
-    { id: "requirements", label: tx("Requirements", "Требования"), count: assessment.requirements.length, icon: ListChecks },
+    { id: "requirements", label: tx("Requirements and conditions", "Требования и условия"), count: assessment.requirements.length, icon: ListChecks },
     { id: "deadlines", label: tx("Deadlines", "Сроки"), count: assessment.deadlines.length, icon: CalendarClock },
     { id: "actions", label: tx("Next actions", "Действия"), count: assessment.actions.length, icon: FileCheck2 },
     { id: "alerts", label: tx("Draft alerts", "Напоминания"), count: assessment.alerts.length, icon: Bell },
@@ -33,8 +36,10 @@ export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, se
   const counts = { met: 0, missing: 0, at_risk: 0, unknown: 0 };
   const statusLabels = { met: tx("met", "выполнено"), missing: tx("missing", "отсутствует"), at_risk: tx("at risk", "с риском"), unknown: tx("unknown", "нет данных") };
   const priorityLabels = { critical: tx("critical", "Критический"), high: tx("high", "Высокий"), medium: tx("medium", "Средний"), low: tx("low", "Низкий") };
-  assessment.requirements.forEach(r => counts[r.status]++);
-  const focusFinding = ["missing", "at_risk", "unknown"].flatMap(status => assessment.requirements.filter(item => item.status === status))[0];
+  const qualificationRequirements = assessment.requirements.filter(countsTowardQualification);
+  const classified = assessment.requirements.some(item => item.kind !== undefined);
+  qualificationRequirements.forEach(r => counts[r.status]++);
+  const focusFinding = ["missing", "at_risk", "unknown"].flatMap(status => qualificationRequirements.filter(item => item.status === status))[0];
   const datedDeadlines = [...assessment.deadlines].sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
   const nextDeadline = datedDeadlines.find(item => Date.parse(item.date) >= Date.parse(now));
   const passedDeadlines = datedDeadlines.filter(item => Date.parse(item.date) < Date.parse(now));
@@ -81,9 +86,10 @@ export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, se
         </div>
       </div>
       <div className="requirement-breakdown">
-        <span className="breakdown-label">{tx("REQUIREMENT CHECK", "ПРОВЕРКА ТРЕБОВАНИЙ")}</span>
+        <span className="breakdown-label">{classified ? tx("QUALIFICATION CHECK", "ПРОВЕРКА КВАЛИФИКАЦИИ") : tx("REQUIREMENT CHECK", "ПРОВЕРКА ТРЕБОВАНИЙ")}</span>
         <div className="breakdown-bar">{Object.entries(counts).map(([status, count]) => count > 0 && <span key={status} className={`bar-${status}`} style={{ flex: count }} title={`${statusLabels[status as keyof typeof counts]}: ${count}`} />)}</div>
         <div className="breakdown-labels">{Object.entries(counts).map(([status, count]) => <span key={status}><i className={`bar-${status}`} />{count} {statusLabels[status as keyof typeof counts]}</span>)}</div>
+        {classified && <p className="breakdown-scope">{tx("Counts include bid requirements and items awaiting classification.", "Счётчики учитывают требования к заявке и пункты с неясным типом.")}</p>}
       </div>
     </div>
 
@@ -116,11 +122,11 @@ export function AssessmentResults({ assessment, mode, analyzedAt, stale, tab, se
       <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="tab-content" tabIndex={0}>
         {tab === "review" && <ManualAssessmentReview assessment={assessment} companyProfile={companyProfile} mode={mode} analyzedAt={analyzedAt} locale={locale} review={review} onChange={setReview} disabled={stale || reportLanguageMismatch || isLoading} />}
         {tab === "requirements" && <>
-          <div className="tab-description"><p>{tx("Requirements matrix", "Матрица требований")} <span>{tx("Each finding is linked to the provided tender.", "Каждый вывод подкреплён текстом тендера.")}</span></p><span className="expand-hint">{tx("Expand a row to inspect evidence", "Раскройте строку, чтобы увидеть обоснование")} <ChevronDown size={13} /></span></div>
+          <div className="tab-description"><p>{tx("Requirements and conditions", "Требования и условия")} <span>{classified ? tx("Type is an AI interpretation. Check the quote and its scope context.", "Тип определён ИИ. Сверьте цитату и контекст её применения.") : tx("Each finding is linked to the provided tender.", "Каждый вывод подкреплён текстом тендера.")}</span></p><span className="expand-hint">{tx("Expand a row to inspect evidence", "Раскройте строку, чтобы увидеть обоснование")} <ChevronDown size={13} /></span></div>
           <div className="requirements-header"><span>{tx("TENDER REQUIREMENT", "ТРЕБОВАНИЕ ТЕНДЕРА")}</span><span>{tx("COMPANY EVIDENCE", "ДАННЫЕ КОМПАНИИ")}</span><span>{tx("STATUS", "СТАТУС")}</span><span /></div>
           {assessment.requirements.length ? assessment.requirements.map((r, index) => <details id={`requirement-${index}`} className="requirement-row" data-status={r.status} key={index}>
-            <summary><span className="requirement-title"><span className="row-number">{String(index + 1).padStart(2, "0")}</span><strong>{r.title}</strong></span><span className="company-evidence-preview">{translateCompanyEvidence(r.companyEvidence, locale, companyProfile)}</span><StatusBadge status={r.status} locale={locale} /><ChevronDown className="expand-icon" size={16} /></summary>
-            <div className="requirement-expanded"><div><span className="evidence-label"><Quote size={13} /> {tx("TENDER EVIDENCE", "ЦИТАТА ИЗ ТЕНДЕРА")}</span><blockquote>{r.tenderEvidence}</blockquote>{r.conflictingEvidence && <><span className="evidence-label"><Quote size={13} /> {tx("Conflicting clause", "Противоречивое условие")}</span><blockquote>{r.conflictingEvidence}</blockquote></>}</div><div><span className="evidence-label"><FileCheck2 size={13} /> {tx("COMPANY EVIDENCE", "ДАННЫЕ КОМПАНИИ")}</span><p>{translateCompanyEvidence(r.companyEvidence, locale, companyProfile)}</p><span className="evidence-label">{tx("ASSESSMENT", "ОЦЕНКА")}</span><p>{r.explanation}</p></div></div>
+            <summary><span className="requirement-title"><span className="row-number">{String(index + 1).padStart(2, "0")}</span><span className="requirement-title-copy"><strong>{r.title}</strong>{r.kind && <span className="requirement-kind">{getRequirementKindLabel(r.kind, locale)}</span>}</span></span><span className="company-evidence-preview">{translateCompanyEvidence(r.companyEvidence, locale, companyProfile)}</span><RequirementStatusBadge requirement={r} locale={locale} /><ChevronDown className="expand-icon" size={16} /></summary>
+            <div className="requirement-expanded"><div><span className="evidence-label"><Quote size={13} /> {tx("TENDER EVIDENCE", "ЦИТАТА ИЗ ТЕНДЕРА")}</span><blockquote>{r.tenderEvidence}</blockquote>{r.contextEvidence && <><span className="evidence-label"><Quote size={13} /> {tx("Scope context", "Контекст применения")}</span><blockquote>{r.contextEvidence}</blockquote></>}{r.conflictingEvidence && <><span className="evidence-label"><Quote size={13} /> {tx("Conflicting clause", "Противоречивое условие")}</span><blockquote>{r.conflictingEvidence}</blockquote></>}</div><div><span className="evidence-label"><FileCheck2 size={13} /> {tx("COMPANY EVIDENCE", "ДАННЫЕ КОМПАНИИ")}</span><p>{translateCompanyEvidence(r.companyEvidence, locale, companyProfile)}</p><span className="evidence-label">{tx("ASSESSMENT", "ОЦЕНКА")}</span><p>{r.explanation}</p></div></div>
           </details>) : <EmptyDetail text={tx("No supported requirements were extracted. Add clearer tender text and run again.", "Подтверждённые требования не найдены. Добавьте более подробный текст тендера и повторите проверку.")} />}
         </>}
 

@@ -5,7 +5,9 @@ import { ClipboardCheck, Download, Info } from "lucide-react";
 import { createReviewJson, reviewFilename, summarizeReview, type AssessmentReview, type ReviewEntry, type ReviewPacketInput } from "@/lib/assessment-review";
 import { createReviewHtml } from "@/lib/review-report";
 import { translate, translateCompanyEvidence } from "@/lib/i18n";
-import { StatusBadge, formatDate } from "./ui";
+import { formatDate } from "./ui";
+import { RequirementStatusBadge } from "./requirement-status";
+import { getRequirementKindLabel } from "@/lib/requirement-kind";
 import styles from "./assessment-review.module.css";
 
 type Props = Omit<ReviewPacketInput, "reviewedAt"> & { disabled: boolean; onChange: (review: AssessmentReview) => void };
@@ -64,12 +66,15 @@ export function ManualAssessmentReview({ assessment, companyProfile, mode, analy
   return <section className={styles.review} aria-label={tx("Team manual review", "Ручная проверка команды")}>
     <div className={styles.heading}><div><span className={styles.kicker}><ClipboardCheck size={15} />{tx("REVIEW WITH THE TEAM", "ПРОВЕРЬТЕ С КОМАНДОЙ")}</span><h3>{tx("Check the findings against the original.", "Сверьте выводы с оригиналом.")}</h3><p>{tx("Mark each requirement and deadline, explain errors, and record anything missing. Your notes stay separate from the original analysis.", "Отметьте требования и сроки, объясните ошибки и запишите пропущенное. Ваши замечания сохраняются отдельно от исходного анализа.")}</p></div><span className={styles.progress}>{tx(`Marked ${counts.marked} of ${counts.total}`, `Отмечено ${counts.marked} из ${counts.total}`)}</span></div>
     <div className={styles.notice}><Info size={16} /><p>{tx("These are team review notes, not specialist certification or official approval. They do not change the model's answer or automatically train it.", "Это замечания команды, а не заключение специалиста или официальный допуск. Они не меняют ответ ИИ и не обучают модель автоматически.")}</p></div>
+    {assessment.requirements.some(item => item.kind !== undefined) && <p className={styles.storage}>{tx("Requirement types are AI interpretations. Check each type against its source quote and scope context.", "Типы требований определены ИИ. Сверьте каждый тип с цитатой и контекстом её применения.")}</p>}
     {disabled && <p className={styles.warning} role="status">{tx("Review is paused while the report is outdated, in another language, or being recalculated. Run a current check before editing or downloading.", "Ручная проверка недоступна, пока отчёт устарел, открыт на другом языке или пересчитывается. Сначала получите актуальный отчёт.")}</p>}
     <fieldset disabled={disabled} className={styles.form}>
       <legend className={styles.srOnly}>{tx("Review findings", "Проверка выводов")}</legend>
       {assessment.requirements.map((item, index) => <article className={styles.row} key={`requirement-${index}`}>
-        <div className={styles.rowHeading}><h4>{tx("Requirement", "Требование")} {index + 1} · {item.title}</h4><StatusBadge status={item.status} locale={locale} /></div>
+        <div className={styles.rowHeading}><h4>{tx("Requirement", "Требование")} {index + 1} · {item.title}</h4><RequirementStatusBadge requirement={item} locale={locale} /></div>
+        {item.kind && <p className={styles.kind}>{getRequirementKindLabel(item.kind, locale)}</p>}
         <blockquote>{item.tenderEvidence}</blockquote>
+        {item.contextEvidence && <div><span className={styles.label}>{tx("Scope context", "Контекст применения")}</span><blockquote>{item.contextEvidence}</blockquote></div>}
         {item.conflictingEvidence && <div><span className={styles.label}>{tx("Conflicting clause", "Противоречивое условие")}</span><blockquote>{item.conflictingEvidence}</blockquote></div>}
         <p className={styles.evidence}>{translateCompanyEvidence(item.companyEvidence, locale, companyProfile)}</p>
         <p className={styles.explanation}>{item.explanation}</p>
